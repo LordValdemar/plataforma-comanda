@@ -42,16 +42,21 @@ passo "Instalando os pacotes do sistema"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q python3 python3-venv git curl ufw fail2ban unattended-upgrades
-if ! apt-get install -y -q caddy 2>/dev/null; then
-  # Versões antigas do Ubuntu/Debian não têm o Caddy: usa o repositório oficial.
+# Caddy sempre do repositório oficial: o do Ubuntu/Debian é antigo (2.6) e aceita
+# assinaturas SHA-1 no TLS 1.2, sem criptografia pós-quântica. Rodar o instalador de
+# novo atualiza o Caddy para a versão mais nova.
+if [ ! -f /etc/apt/sources.list.d/caddy-stable.list ]; then
   apt-get install -y -q debian-keyring debian-archive-keyring apt-transport-https gnupg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
     | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
     > /etc/apt/sources.list.d/caddy-stable.list
   apt-get update -q
-  apt-get install -y -q caddy
 fi
+CADDY_ANTES="$(caddy version 2>/dev/null | cut -d' ' -f1 || true)"
+apt-get install -y -q caddy
+CADDY_DEPOIS="$(caddy version | cut -d' ' -f1)"
+echo "Caddy: $CADDY_DEPOIS"
 
 python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' \
   || erro "é preciso Python 3.10 ou mais novo (use Ubuntu 22.04+ ou Debian 12+)"
@@ -179,7 +184,11 @@ if ! SAIDA_CADDY="$(caddy validate --config /etc/caddy/Caddyfile --adapter caddy
   erro "a configuração do Caddy é inválida (veja acima)"
 fi
 systemctl enable caddy >/dev/null
-systemctl reload caddy 2>/dev/null || systemctl restart caddy
+if [ "$CADDY_ANTES" != "$CADDY_DEPOIS" ]; then
+  systemctl restart caddy   # versão nova do Caddy: só vale depois de reiniciar
+else
+  systemctl reload caddy 2>/dev/null || systemctl restart caddy
+fi
 
 # ---------------------------------------------------------------------------
 passo "Firewall: liberando só SSH, HTTP e HTTPS"
