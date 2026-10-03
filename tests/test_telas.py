@@ -331,3 +331,27 @@ def test_pausar_todas_as_propagandas(logado):
     postar(logado, "/pausa", {"acao": "retomar"})
     dados = logado.get(f"/api/tela/{tela['codigo']}/playlist").get_json()
     assert dados["pausado"] is False and [i["id"] for i in dados["itens"]] == [a]
+
+
+def test_letreiro_proprio_por_propaganda(logado):
+    tela = criar_tela(logado, "Balcão")
+    a, b, c = (nova_propaganda(logado, f"{n}.png") for n in "abc")
+    postar(logado, "/letreiro", {"letreiro": "Geral da loja"})
+
+    configurar(logado, a, letreiro_modo="proprio", letreiro_texto="Só do bolo")
+    configurar(logado, b, letreiro_modo="nenhum")
+    dados = logado.get(f"/api/tela/{tela['codigo']}/playlist").get_json()
+    assert dados["letreiro"] == "Geral da loja"
+    assert [i["letreiro"] for i in dados["itens"]] == ["Só do bolo", "", None]
+
+    # Em várias de uma vez: b e c ganham o mesmo texto; depois a volta ao geral.
+    postar(logado, "/lote", {"ids": [str(b), str(c)], "acao": "letreiro", "letreiro_modo": "proprio", "letreiro_texto": "Promo"})
+    postar(logado, "/lote", {"ids": [str(a)], "acao": "letreiro", "letreiro_modo": "geral"})
+    itens = logado.get(f"/api/tela/{tela['codigo']}/playlist").get_json()["itens"]
+    assert [i["letreiro"] for i in itens] == [None, "Promo", "Promo"]
+
+    # "Texto próprio" sem texto não apaga nada.
+    resposta = postar(logado, "/lote", {"ids": [str(b)], "acao": "letreiro", "letreiro_modo": "proprio", "letreiro_texto": " "},
+                      follow_redirects=True)
+    assert "Escreva o texto do letreiro" in resposta.get_data(as_text=True)
+    assert "Letreiro próprio: “Promo”" in logado.get("/").get_data(as_text=True)

@@ -17,6 +17,18 @@
     atualizar();
   });
 
+  // O campo de texto do letreiro só vale com "Texto próprio".
+  document.querySelectorAll("[data-escolher-letreiro]").forEach(function (bloco) {
+    const campo = bloco.querySelector('input[name="letreiro_texto"]');
+    function atualizar() {
+      const proprio = bloco.querySelector('input[name="letreiro_modo"][value="proprio"]').checked;
+      campo.hidden = !proprio;
+      campo.required = proprio && !bloco.closest("#form-lote");  // na barra, outras ações não podem travar
+    }
+    bloco.querySelectorAll('input[name="letreiro_modo"]').forEach(function (r) { r.addEventListener("change", atualizar); });
+    atualizar();
+  });
+
   if (!formLote) return;
   const caixas = Array.from(document.querySelectorAll('input[name="ids"][form="form-lote"]'));
   const botoes = Array.from(formLote.querySelectorAll('button[type="submit"]'));

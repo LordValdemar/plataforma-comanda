@@ -1,0 +1,10 @@
+{# Letreiro durante a propaganda. Recebe: atual (None = geral, '' = nenhum, texto = próprio). #}
+<div class="escolher-letreiro" data-escolher-letreiro>
+  <div class="opcoes">
+    <label><input type="radio" name="letreiro_modo" value="geral" {% if atual is none %}checked{% endif %}> Usar o letreiro geral</label>
+    <label><input type="radio" name="letreiro_modo" value="proprio" {% if atual %}checked{% endif %}> Texto próprio</label>
+    <label><input type="radio" name="letreiro_modo" value="nenhum" {% if atual == '' %}checked{% endif %}> Sem letreiro</label>
+  </div>
+  <input type="text" name="letreiro_texto" value="{{ atual or '' }}" maxlength="500" aria-label="Texto do letreiro desta propaganda"
+         placeholder="Ex.: Bolo de cenoura com cobertura: R$ 25,00">
+</div>

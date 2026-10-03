@@ -48,14 +48,14 @@
   </section>
 
   <section>
-    <h2>Letreiro</h2>
+    <h2>Letreiro geral</h2>
     <form action="{{ url_for('painel.letreiro') }}" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="letreiro">Texto que rola no rodapé das TVs</label>
+      <label for="letreiro">Texto que rola no rodapé das TVs, igual para todas as propagandas</label>
       <input type="text" id="letreiro" name="letreiro" value="{{ letreiro }}" maxlength="500"
              placeholder="Ex.: Promoção de pão francês: R$ 12,90 o kg! • Aceitamos PIX">
       <div class="linha" style="margin-top:10px">
-        <div><span class="dica">Deixe em branco para esconder.</span></div>
+        <div><span class="dica">Deixe em branco para esconder. Cada propaganda pode ter um letreiro próprio (em Editar).</span></div>
         <div class="fixo"><button type="submit">Salvar</button></div>
       </div>
     </form>
@@ -102,6 +102,7 @@
           📺 {% if item.para_todas %}Todas as telas{% elif destino.nomes %}{{ destino.nomes|join(', ') }}{% else %}<span class="selo alerta">Nenhuma tela: escolha um destino</span>{% endif %}
           <br>🗓 {{ agenda.resumo_dias(item.dias_semana) }}, {{ agenda.resumo_horario(item.hora_inicio, item.hora_fim) }}
           {%- if item.inicio or item.fim %} · de {{ item.inicio or '…' }} até {{ item.fim or '…' }}{% endif %}
+          {% if item.letreiro %}<br>💬 Letreiro próprio: “{{ item.letreiro|truncate(60) }}”{% elif item.letreiro == '' %}<br>💬 Sem letreiro{% endif %}
         </div>
       </div>
       <div class="prop-ordem">
@@ -141,6 +142,9 @@
             <div><label>Termina em (opcional)</label><input type="date" name="fim" value="{{ item.fim or '' }}"></div>
           </div>
           <p class="dica" style="margin:6px 0 0">Ex.: café da manhã das 06:00 às 10:00. Pode virar a noite (22:00 às 02:00).</p>
+
+          <h3>Letreiro durante esta propaganda</h3>
+          {% with atual=item.letreiro %}{% include "_escolher_letreiro.html" %}{% endwith %}
 
           <h3>Em quais telas</h3>
           {% with para_todas=item.para_todas, marcadas_telas=destino.telas, marcados_grupos=destino.grupos %}
@@ -189,6 +193,15 @@
         <input type="number" id="lote-duracao" name="duracao" value="10" min="1" max="3600">
         <p class="dica">Vídeos sempre tocam até o fim.</p>
         <button type="submit" name="acao" value="tempo">Aplicar nas selecionadas</button>
+      </div>
+    </details>
+
+    <details class="painel-lote">
+      <summary class="botao secundario">💬 Letreiro</summary>
+      <div class="painel-lote-corpo">
+        <label>Letreiro durante as selecionadas</label>
+        {% with atual=None %}{% include "_escolher_letreiro.html" %}{% endwith %}
+        <button type="submit" name="acao" value="letreiro">Aplicar nas selecionadas</button>
       </div>
     </details>
 

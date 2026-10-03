@@ -14,6 +14,7 @@ const UM_DIA = 24 * 60 * 60 * 1000;
 
 let itens = [];        // última lista recebida (usada se o servidor cair)
 let pausado = false;   // a loja pausou todas as propagandas no painel
+let letreiroGeral = "";  // o da loja (ou o da tela); cada propaganda pode ter o próprio
 let posicao = -1;
 let textoLetreiro = null;
 let temporizador = null;
@@ -34,7 +35,8 @@ async function atualizarLista() {
     const dados = await resposta.json();
     itens = dados.itens;
     pausado = Boolean(dados.pausado);
-    mostrarLetreiro(dados.letreiro);
+    letreiroGeral = dados.letreiro || "";
+    if (pausado || itens.length === 0) mostrarLetreiro(letreiroGeral);
     preCarregar(itens);
     return true;
   } catch (erro) {
@@ -156,6 +158,8 @@ async function proxima() {
   await new Promise(r => setTimeout(r, 600));
   if (minha !== rodada) return;
   tela.innerHTML = "";
+  // Letreiro próprio da propaganda ("" = sem letreiro) ou, se não tiver, o geral.
+  mostrarLetreiro(item.letreiro === null || item.letreiro === undefined ? letreiroGeral : item.letreiro);
 
   const comecou = () => { if (minha === rodada) atual = { id: item.id, inicio: Date.now() }; };
   const falhou = () => { atual = null; seguir(); };   // não conta como exibida

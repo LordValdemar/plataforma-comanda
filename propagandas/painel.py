@@ -83,6 +83,19 @@ def destinos_por_propaganda(conexao):
     return resultado
 
 
+LETREIRO_MODOS = ("geral", "proprio", "nenhum")
+
+
+def ler_letreiro(formulario):
+    """Letreiro durante a propaganda: None = o geral, '' = nenhum, texto = próprio."""
+    modo = formulario.get("letreiro_modo", "geral")
+    if modo == "nenhum":
+        return ""
+    if modo == "proprio":
+        return formulario.get("letreiro_texto", "").strip()[:500] or None
+    return None
+
+
 def esta_pausado(empresa_id):
     """Pausa geral: as TVs da loja ficam sem propagandas até alguém retomar."""
     return db.ler_config(empresa_id, "pausado") == "1"
@@ -227,7 +240,7 @@ def atualizar(propaganda_id):
             """
             UPDATE propagandas
             SET nome = ?, duracao = ?, ativo = ?, inicio = ?, fim = ?,
-                dias_semana = ?, hora_inicio = ?, hora_fim = ?, para_todas = ?
+                dias_semana = ?, hora_inicio = ?, hora_fim = ?, para_todas = ?, letreiro = ?
             WHERE id = ? AND empresa_id = ?
             """,
             (
@@ -240,6 +253,7 @@ def atualizar(propaganda_id):
                 hora_inicio,
                 hora_fim,
                 1 if para_todas else 0,
+                ler_letreiro(formulario),
                 propaganda_id,
                 g.empresa_id,
             ),
@@ -329,6 +343,16 @@ def lote():
                 (duracao, g.empresa_id, *ids),
             )
         mensagem = f"Tempo de {duracao} s aplicado em {len(ids)} propaganda(s)."
+    elif acao == "letreiro":
+        if formulario.get("letreiro_modo") == "proprio" and not formulario.get("letreiro_texto", "").strip():
+            flash("Escreva o texto do letreiro.", "erro")
+            return redirect(url_for("painel.lista"))
+        with conexao:
+            conexao.execute(
+                f"UPDATE propagandas SET letreiro = ? WHERE empresa_id = ? AND id IN ({marcas})",
+                (ler_letreiro(formulario), g.empresa_id, *ids),
+            )
+        mensagem = f"Letreiro atualizado em {len(ids)} propaganda(s)."
     elif acao == "telas":
         modo = formulario.get("modo", "trocar")
         telas, grupos = ler_destinos(conexao, formulario)

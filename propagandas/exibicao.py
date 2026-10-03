@@ -61,6 +61,7 @@ def _resposta_playlist(itens, letreiro, pausado=False):
                 "tipo": item["tipo"],
                 "url": url_for("exibicao.midia", arquivo=item["arquivo"]),
                 "duracao": item["duracao"],
+                "letreiro": item["letreiro"],  # None = usa o letreiro geral da resposta
             }
             for item in itens
         ],

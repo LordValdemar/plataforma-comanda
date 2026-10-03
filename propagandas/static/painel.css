@@ -146,3 +146,4 @@ button.pequeno { padding: 4px 10px; }
   .painel-lote { position: static; }
   .painel-lote-corpo { left: 8px; right: 8px; width: auto; }
 }
+.escolher-letreiro input[type=text] { margin-top: 2px; }

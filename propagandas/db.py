@@ -375,6 +375,10 @@ MIGRACOES = [
     """
     ALTER TABLE usuarios ADD COLUMN fecha_conta INTEGER NOT NULL DEFAULT 0;
     """,
+    # 8 - letreiro próprio por propaganda: NULL = usa o geral (ou o da tela), '' = sem letreiro.
+    """
+    ALTER TABLE propagandas ADD COLUMN letreiro TEXT;
+    """,
 ]
 
 
