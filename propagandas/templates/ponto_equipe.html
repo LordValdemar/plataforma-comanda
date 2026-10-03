@@ -23,6 +23,39 @@
 </section>
 
 <section>
+  <div class="cabecalho-lista">
+    <h2>QR code do ponto</h2>
+    <form action="{{ url_for('ponto.qr_ajustes') }}" method="post"
+          {% if exige_qr %}data-confirmar="Dispensar o QR code? A equipe poderá registrar o ponto de qualquer lugar."{% endif %}>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if exige_qr %}
+        <button name="acao" value="dispensar" class="secundario">Dispensar o QR code</button>
+      {% else %}
+        <button name="acao" value="exigir">Exigir o QR code</button>
+      {% endif %}
+    </form>
+  </div>
+  {% if exige_qr %}
+    <p class="u-mt8">O ponto só é registrado lendo, com o celular, o QR code que aparece num aparelho fixo da loja. O código muda a cada 20 segundos, então ninguém consegue registrar de casa.</p>
+    <ol class="passos">
+      <li>Num aparelho que fica na loja (TV, tablet ou o computador do caixa), abra o endereço abaixo e deixe em tela cheia.</li>
+      <li>Ao chegar e ao sair, cada pessoa aponta a câmera do celular para o código e toca em <b>Registrar</b>.</li>
+    </ol>
+    <p class="endereco">{{ endereco_quiosque }}</p>
+    <div class="acoes">
+      <a class="botao" href="{{ endereco_quiosque }}" target="_blank" rel="noopener">Abrir a tela do QR code</a>
+      <form action="{{ url_for('ponto.qr_ajustes') }}" method="post" data-confirmar="Criar um endereço novo? O endereço atual para de funcionar.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button name="acao" value="novo_endereco" class="secundario">Gerar endereço novo</button>
+      </form>
+    </div>
+    <p class="dica">Gere um endereço novo se alguém de fora conseguir o atual. A saída sem QR code é permitida, mas fica anotada nos registros.</p>
+  {% else %}
+    <p class="dica u-mt8">Dispensado: o ponto é registrado por um botão, de qualquer lugar.</p>
+  {% endif %}
+</section>
+
+<section>
   <h2>Equipe</h2>
   <p class="dica u-mt0">Defina os dias e o horário de cada pessoa. Fora do horário ela não consegue registrar a entrada, e o ponto aberto fecha sozinho quando o horário acaba. <b>Desconectar</b> encerra a sessão em todos os aparelhos na hora.</p>
   <div class="lista-equipe">

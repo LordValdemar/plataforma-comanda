@@ -6,15 +6,22 @@
   entrada, e o ponto aberto fecha sozinho quando o horário acaba.
 - O administrador vê quem está trabalhando, desconecta qualquer pessoa (todos os aparelhos)
   e tira o relatório de horas.
+- QR code (ligado por padrão): um aparelho fixo na loja mostra um QR que muda a cada 20 s e
+  vale 2 minutos. Só depois de ler esse QR com o celular a pessoa registra a entrada; assim
+  ninguém bate ponto de casa. A saída também pede o QR; sem ele, fica anotada no relatório.
 """
 
 import csv
+import hashlib
+import hmac
 import io
 import logging
 import secrets
+import time
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, Response, abort, flash, g, redirect, render_template, request, session, url_for
+import segno
+from flask import Blueprint, Response, abort, flash, g, jsonify, redirect, render_template, request, session, url_for
 
 from . import agenda, db, modulos
 from .auth import login_obrigatorio
@@ -24,10 +31,14 @@ bp = Blueprint("ponto", __name__)
 log = logging.getLogger("propagandas.ponto")
 
 MAX_DIAS_RELATORIO = 92
+QR_TROCA_SEGUNDOS = 20      # o QR da loja muda a cada 20 s
+QR_VALIDADE_SEGUNDOS = 120  # e cada um vale 2 minutos (tempo de abrir a câmera, ou de fazer login)
+PRESENCA_SEGUNDOS = 300     # depois de ler o QR, 5 minutos para tocar em "Registrar"
+SAIDA_SEM_QR = "saída sem QR code"
 
 # O que quem está sem ponto aberto ainda pode abrir.
 LIBERADAS_SEM_PONTO = {
-    "ponto.meu", "ponto.entrada", "ponto.saida", "auth.sair", "auth.login", "auth.minha_conta", "auth.minha_senha",
+    "ponto.meu", "ponto.entrada", "ponto.saida", "ponto.ler_qr", "ponto.quiosque", "ponto.quiosque_api", "auth.sair", "auth.login", "auth.minha_conta", "auth.minha_senha",
     "auth.ativar_2fa", "auth.desativar_2fa_proprio", "static", "legal.privacidade", "legal.termos", "legal.security_txt",
 }
 
@@ -38,6 +49,56 @@ LIBERADAS_SEM_PONTO = {
 
 def ativo(empresa_id):
     return db.ler_config(empresa_id, "ponto_ativo") == "1"
+
+
+def exige_qr(empresa_id):
+    return db.ler_config(empresa_id, "ponto_qr") != "0"  # ligado, a não ser que o administrador desligue
+
+
+def _segredo(empresa_id):
+    """Chave da loja para assinar os QR codes (criada na primeira vez)."""
+    segredo = db.ler_config(empresa_id, "ponto_segredo")
+    if not segredo:
+        segredo = secrets.token_hex(32)
+        db.gravar_config(empresa_id, "ponto_segredo", segredo)
+    return segredo
+
+
+def codigo_quiosque(empresa_id, novo=False):
+    """Parte secreta do endereço da tela do QR code (quem tem o endereço vê o QR)."""
+    codigo = db.ler_config(empresa_id, "ponto_quiosque")
+    if novo or not codigo:
+        codigo = secrets.token_urlsafe(12)
+        db.gravar_config(empresa_id, "ponto_quiosque", codigo)
+    return codigo
+
+
+def _assinatura(empresa_id, janela):
+    mensagem = f"{empresa_id}:{janela}".encode()
+    return hmac.new(_segredo(empresa_id).encode(), mensagem, hashlib.sha256).hexdigest()[:24]
+
+
+def token_qr(empresa_id, agora=None):
+    janela = int((agora or time.time()) // QR_TROCA_SEGUNDOS)
+    return f"{janela}-{_assinatura(empresa_id, janela)}"
+
+
+def token_valido(empresa_id, token, agora=None):
+    try:
+        janela_texto, assinatura = token.split("-", 1)
+        janela = int(janela_texto)
+    except ValueError:
+        return False
+    atual = int((agora or time.time()) // QR_TROCA_SEGUNDOS)
+    if not 0 <= atual - janela < QR_VALIDADE_SEGUNDOS // QR_TROCA_SEGUNDOS:
+        return False
+    return hmac.compare_digest(assinatura, _assinatura(empresa_id, janela))
+
+
+def presenca_confirmada():
+    """A pessoa leu o QR da própria loja há pouco (guardado na sessão dela)?"""
+    presenca = session.get("ponto_presenca") or {}
+    return presenca.get("empresa") == g.empresa_id and presenca.get("ate", 0) > time.time()
 
 
 def exige_ponto(usuario):
@@ -171,6 +232,8 @@ def meu():
         exige=exige_ponto(g.usuario),
         registro=aberto(conexao, g.usuario["id"]),
         no_horario=no_horario(g.usuario),
+        exige_qr=exige_qr(g.empresa_id),
+        presenca=presenca_confirmada(),
         horario=resumo_horario(g.usuario),
         registros=_historico(conexao, g.empresa_id, de, ate, g.usuario["id"]),
         inicio=modulos.pagina_inicial(),
@@ -186,6 +249,10 @@ def entrada():
     if not no_horario(g.usuario):
         flash(f"Fora do seu horário de trabalho ({resumo_horario(g.usuario)}). Fale com o administrador.", "erro")
         return redirect(url_for("ponto.meu"))
+    if exige_qr(g.empresa_id) and not presenca_confirmada():
+        flash("Leia o QR code do ponto, na loja, com a câmera do celular.", "erro")
+        return redirect(url_for("ponto.meu"))
+    session.pop("ponto_presenca", None)
     if aberto(conexao, g.usuario["id"]) is None:
         with conexao:
             conexao.execute(
@@ -202,11 +269,62 @@ def entrada():
 @bp.route("/ponto/saida", methods=["POST"])
 @login_obrigatorio()
 def saida():
-    if fechar(db.obter(), g.usuario["id"], "saída"):
+    sem_qr = exige_ponto(g.usuario) and exige_qr(g.empresa_id) and not presenca_confirmada()
+    session.pop("ponto_presenca", None)
+    if fechar(db.obter(), g.usuario["id"], SAIDA_SEM_QR if sem_qr else "saída"):
         log.info("“%s” registrou a saída", g.usuario["usuario"])
         flash(f"Saída registrada às {agenda.agora_local():%H:%M}. Até a próxima!", "ok")
     _sair_desta_sessao()
     return redirect(url_for("auth.login"))
+
+
+@bp.route("/ponto/qr/<slug>/<token>")
+@login_obrigatorio()
+def ler_qr(slug, token):
+    """Endereço do QR code da loja: o celular abre, e a presença fica confirmada por alguns minutos."""
+    if slug != g.usuario["empresa_slug"]:
+        flash("Este QR code é de outra loja.", "erro")
+    elif not token_valido(g.empresa_id, token):
+        flash("Este QR code venceu. Leia de novo o código que está na tela da loja.", "erro")
+    else:
+        session["ponto_presenca"] = {"empresa": g.empresa_id, "ate": time.time() + PRESENCA_SEGUNDOS}
+        flash("QR code lido. Confirme abaixo.", "ok")
+    return redirect(url_for("ponto.meu"))
+
+
+def _empresa_do_quiosque(codigo):
+    linha = db.obter().execute(
+        "SELECT empresa_id FROM configuracoes WHERE chave = 'ponto_quiosque' AND valor = ?", (codigo,)
+    ).fetchone()
+    if linha is None:
+        abort(404)
+    return linha["empresa_id"]
+
+
+@bp.route("/ponto/quiosque/<codigo>")
+def quiosque(codigo):
+    """Tela fixa da loja (TV, tablet ou computador do caixa) que mostra o QR do ponto. Não precisa de login."""
+    empresa_id = _empresa_do_quiosque(codigo)
+    nome = db.obter().execute("SELECT nome FROM empresas WHERE id = ?", (empresa_id,)).fetchone()["nome"]
+    return render_template("ponto_quiosque.html", codigo=codigo, nome=nome)
+
+
+@bp.route("/api/ponto/quiosque/<codigo>")
+def quiosque_api(codigo):
+    empresa_id = _empresa_do_quiosque(codigo)
+    if not ativo(empresa_id):
+        resposta = {"ativo": False}
+    else:
+        slug = db.obter().execute("SELECT slug FROM empresas WHERE id = ?", (empresa_id,)).fetchone()["slug"]
+        endereco = url_for("ponto.ler_qr", slug=slug, token=token_qr(empresa_id), _external=True)
+        resposta = {
+            "ativo": True,
+            "qr": segno.make(endereco, error="m").svg_data_uri(scale=10, border=2),
+            "troca_em": QR_TROCA_SEGUNDOS - int(time.time()) % QR_TROCA_SEGUNDOS,
+        }
+    resposta = jsonify(resposta)
+    resposta.headers["Cache-Control"] = "no-store"
+    return resposta
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +375,8 @@ def equipe():
     return render_template(
         "ponto_equipe.html",
         ativo=ativo(g.empresa_id),
+        exige_qr=exige_qr(g.empresa_id),
+        endereco_quiosque=url_for("ponto.quiosque", codigo=codigo_quiosque(g.empresa_id), _external=True),
         pessoas=pessoas,
         no_horario={p["id"]: no_horario(p) for p in pessoas},
         registros=registros,
@@ -265,6 +385,23 @@ def equipe():
         dias=agenda.DIAS,
         resumo_horario=resumo_horario,
     )
+
+
+@bp.route("/ponto/qr-ajustes", methods=["POST"])
+@login_obrigatorio("admin")
+def qr_ajustes():
+    acao = request.form.get("acao")
+    if acao == "novo_endereco":
+        codigo_quiosque(g.empresa_id, novo=True)
+        flash("Novo endereço da tela do QR code criado. Abra o endereço novo no aparelho da loja.", "ok")
+    elif acao in ("exigir", "dispensar"):
+        db.gravar_config(g.empresa_id, "ponto_qr", "1" if acao == "exigir" else "0")
+        flash("QR code exigido para registrar o ponto." if acao == "exigir"
+              else "QR code dispensado: o ponto passa a ser registrado por um botão, de qualquer lugar.", "ok")
+    else:
+        abort(400)
+    log.info("“%s” alterou o QR code do ponto: %s", g.usuario["usuario"], acao)
+    return redirect(url_for("ponto.equipe"))
 
 
 @bp.route("/ponto/ajustes", methods=["POST"])

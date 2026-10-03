@@ -10,17 +10,32 @@
   {% elif registro %}
     <div class="ponto-relogio">● Trabalhando desde {{ registro.entrada|data_hora('%H:%M') }}</div>
     <p class="dica">Seu horário: {{ horario }}.</p>
+    {% if exige_qr and not presenca %}
+      <p class="ponto-qr-instrucao">📷 Para registrar a saída, leia o <b>QR code do ponto</b> na loja com a câmera do celular.</p>
+    {% endif %}
     <div class="acoes">
       <a class="botao secundario" href="{{ inicio }}">Voltar ao trabalho</a>
-      <form action="{{ url_for('ponto.saida') }}" method="post" data-confirmar="Registrar a saída agora? Você será desconectado.">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="perigo">Registrar saída</button>
-      </form>
+      {% if not exige_qr or presenca %}
+        <form action="{{ url_for('ponto.saida') }}" method="post" data-confirmar="Registrar a saída agora? Você será desconectado.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="perigo">Registrar saída</button>
+        </form>
+      {% endif %}
     </div>
+    {% if exige_qr and not presenca %}
+      <form action="{{ url_for('ponto.saida') }}" method="post" class="u-mt12"
+            data-confirmar="Sair sem ler o QR code? A saída fica anotada como “sem QR code” para o administrador.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="link-discreto">Estou sem acesso ao QR code: registrar saída mesmo assim</button>
+      </form>
+    {% endif %}
   {% else %}
     <h2>Olá, {{ g.usuario.usuario }}!</h2>
-    {% if no_horario %}
-      <p>Registre a entrada para começar a usar o sistema.</p>
+    {% if no_horario and exige_qr and not presenca %}
+      <p class="ponto-qr-instrucao">📷 Para registrar a entrada, leia o <b>QR code do ponto</b> na loja com a câmera do celular.</p>
+      <p class="dica">O código fica na tela do ponto da loja e muda a cada poucos segundos.</p>
+    {% elif no_horario %}
+      <p>{{ 'QR code lido. ' if presenca else '' }}Registre a entrada para começar a usar o sistema.</p>
       <form action="{{ url_for('ponto.entrada') }}" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="grande">Registrar entrada</button>

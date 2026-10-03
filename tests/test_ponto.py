@@ -1,5 +1,7 @@
 """Controle de ponto: entrada e saída, horário de trabalho, desconectar e relatório."""
 
+import re
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -35,6 +37,14 @@ def entrar(app, usuario):
     return cliente
 
 
+def ler_qr(cliente, app, empresa_id=1, token=None):
+    """Simula a pessoa lendo, com o celular, o QR code que está na tela da loja."""
+    with app.app_context():
+        slug = db.obter().execute("SELECT slug FROM empresas WHERE id = ?", (empresa_id,)).fetchone()["slug"]
+        token = token or ponto.token_qr(empresa_id)
+    return cliente.get(f"/ponto/qr/{slug}/{token}", follow_redirects=True)
+
+
 def ligar_ponto(admin):
     post(admin, "/ponto/ajustes", {"ativo": "1"})
 
@@ -57,17 +67,20 @@ def test_entrada_e_saida(logado, app):
     # Sem ponto aberto: tudo leva para a página do ponto, e a API da cozinha responde 401.
     assert joao.get("/comanda/").headers["Location"].endswith("/ponto")
     assert joao.get("/comanda/api/cozinha").status_code == 401
-    assert "Registrar entrada" in joao.get("/ponto").get_data(as_text=True)
+    assert "leia o <b>QR code do ponto</b>" in joao.get("/ponto").get_data(as_text=True)
 
+    ler_qr(joao, app)
     post(joao, "/ponto/entrada")
     assert joao.get("/comanda/").status_code == 200
     assert "Ponto aberto" in joao.get("/comanda/").get_data(as_text=True)
     assert len(consultar(app, "SELECT * FROM ponto_registros WHERE saida IS NULL")) == 1
 
     # Entrar de novo não abre um segundo ponto.
+    ler_qr(joao, app)
     post(joao, "/ponto/entrada")
     assert len(consultar(app, "SELECT * FROM ponto_registros")) == 1
 
+    ler_qr(joao, app)
     resposta = post(joao, "/ponto/saida")
     assert resposta.headers["Location"].endswith("/login")
     registro = consultar(app, "SELECT * FROM ponto_registros")[0]
@@ -85,6 +98,7 @@ def test_fora_do_horario_nao_entra_e_ponto_fecha_quando_o_horario_acaba(logado, 
     joao_id = criar_pessoa(app, "joao")
     ligar_ponto(logado)
     joao = entrar(app, "joao")
+    ler_qr(joao, app)
     post(joao, "/ponto/entrada")
 
     # O administrador tira o dia de hoje do horário: o ponto aberto fecha no próximo acesso.
@@ -104,6 +118,7 @@ def test_tarefa_fecha_ponto_de_quem_passou_do_horario(logado, app):
     joao_id = criar_pessoa(app, "joao")
     ligar_ponto(logado)
     joao = entrar(app, "joao")
+    ler_qr(joao, app)
     post(joao, "/ponto/entrada")
     with app.app_context():
         conexao = db.obter()
@@ -119,6 +134,7 @@ def test_desconectar_derruba_a_sessao_e_fecha_o_ponto(logado, app):
     ligar_ponto(logado)
     joao = entrar(app, "joao")
     joao_celular = entrar(app, "joao")  # outro aparelho
+    ler_qr(joao, app)
     post(joao, "/ponto/entrada")
 
     post(logado, f"/ponto/pessoa/{joao_id}/desconectar")
@@ -175,7 +191,9 @@ def test_relatorio_csv(logado, app):
     criar_pessoa(app, "joao")
     ligar_ponto(logado)
     joao = entrar(app, "joao")
+    ler_qr(joao, app)
     post(joao, "/ponto/entrada")
+    ler_qr(joao, app)
     post(joao, "/ponto/saida")
     resposta = logado.get("/ponto/relatorio.csv")
     texto = resposta.get_data(as_text=True)
@@ -194,3 +212,85 @@ def test_horario_que_vira_a_noite():
     assert not ponto.no_horario(sexta_das_18_as_2, em(2, "01:30"))  # sexta de madrugada: turno de quinta
     dia_todo = {"horario_dias": "4", "horario_inicio": None, "horario_fim": None}
     assert ponto.no_horario(dia_todo, em(2, "03:00")) and not ponto.no_horario(dia_todo, em(3, "03:00"))
+
+
+# ---------------------------------------------------------------------------
+# QR code
+# ---------------------------------------------------------------------------
+
+def test_sem_ler_o_qr_nao_registra_a_entrada(logado, app):
+    criar_pessoa(app, "joao")
+    ligar_ponto(logado)
+    joao = entrar(app, "joao")
+    resposta = post(joao, "/ponto/entrada", follow_redirects=True)
+    assert "Leia o QR code do ponto" in resposta.get_data(as_text=True)
+    assert consultar(app, "SELECT COUNT(*) FROM ponto_registros")[0][0] == 0
+
+    assert "QR code lido" in ler_qr(joao, app).get_data(as_text=True)
+    post(joao, "/ponto/entrada")
+    assert consultar(app, "SELECT COUNT(*) FROM ponto_registros")[0][0] == 1
+
+
+def test_qr_vencido_falso_ou_de_outra_loja_nao_vale(logado, app):
+    criar_pessoa(app, "joao")
+    ligar_ponto(logado)
+    joao = entrar(app, "joao")
+    with app.app_context():
+        antigo = ponto.token_qr(1, agora=time.time() - ponto.QR_VALIDADE_SEGUNDOS - 30)
+        janela = ponto.token_qr(1).split("-")[0]
+    assert "venceu" in ler_qr(joao, app, token=antigo).get_data(as_text=True)
+    assert "venceu" in ler_qr(joao, app, token=f"{janela}-{'0' * 24}").get_data(as_text=True)
+    assert "venceu" in ler_qr(joao, app, token="lixo").get_data(as_text=True)
+
+    post(logado, "/plataforma/empresas/nova", {"nome": "Outra Loja", "usuario": "dono2", "senha": "senha-forte-123",
+                                               "modulos_enviados": "1", "modulos": ["comanda"]})
+    outra = consultar(app, "SELECT id FROM empresas WHERE nome = 'Outra Loja'")[0][0]
+    assert "outra loja" in ler_qr(joao, app, empresa_id=outra).get_data(as_text=True)
+    post(joao, "/ponto/entrada")
+    assert consultar(app, "SELECT COUNT(*) FROM ponto_registros")[0][0] == 0
+
+
+def test_qr_de_um_minuto_atras_ainda_vale(logado, app):
+    with app.app_context():
+        assert ponto.token_valido(1, ponto.token_qr(1, agora=time.time() - 60))
+        assert not ponto.token_valido(1, ponto.token_qr(1, agora=time.time() + 60))  # do futuro, não
+
+
+def test_saida_sem_qr_fica_anotada(logado, app):
+    criar_pessoa(app, "joao")
+    ligar_ponto(logado)
+    joao = entrar(app, "joao")
+    ler_qr(joao, app)
+    post(joao, "/ponto/entrada")
+    assert "Estou sem acesso ao QR code" in joao.get("/ponto").get_data(as_text=True)
+    post(joao, "/ponto/saida")
+    assert consultar(app, "SELECT motivo_saida FROM ponto_registros")[0][0] == "saída sem QR code"
+    assert "saída sem QR code" in logado.get("/ponto/equipe").get_data(as_text=True)
+
+
+def test_tela_do_qr_na_loja(logado, app):
+    pagina = logado.get("/ponto/equipe").get_data(as_text=True)
+    endereco = re.search(r'<p class="endereco">http://localhost(/ponto/quiosque/[^<]+)</p>', pagina).group(1)
+    anonimo = app.test_client()
+    assert "QR code do ponto" in anonimo.get(endereco).get_data(as_text=True)
+    api = endereco.replace("/ponto/quiosque/", "/api/ponto/quiosque/")
+    assert anonimo.get(api).get_json() == {"ativo": False}
+
+    ligar_ponto(logado)
+    dados = anonimo.get(api).get_json()
+    assert dados["ativo"] and dados["qr"].startswith("data:image/svg+xml") and 0 < dados["troca_em"] <= 20
+
+    # Endereço novo: o antigo deixa de funcionar.
+    post(logado, "/ponto/qr-ajustes", {"acao": "novo_endereco"})
+    assert anonimo.get(endereco).status_code == 404
+    assert anonimo.get("/ponto/quiosque/nao-existe").status_code == 404
+
+
+def test_dispensar_o_qr_volta_ao_botao(logado, app):
+    criar_pessoa(app, "joao")
+    ligar_ponto(logado)
+    post(logado, "/ponto/qr-ajustes", {"acao": "dispensar"})
+    joao = entrar(app, "joao")
+    post(joao, "/ponto/entrada")
+    post(joao, "/ponto/saida")
+    assert consultar(app, "SELECT motivo_saida FROM ponto_registros")[0][0] == "saída"
