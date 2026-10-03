@@ -77,7 +77,7 @@ Com a VM de volta ao instantâneo `limpa`, baixe o projeto direto na pasta usada
 
 ```bash
 sudo apt update && sudo apt install -y git
-sudo git clone https://github.com/LordValdemar/S.git /opt/painel-propagandas
+sudo git clone https://github.com/LordValdemar/plataforma-comanda.git /opt/painel-propagandas
 sudo /opt/painel-propagandas/deploy/vps/instalar-vps.sh painel.teste voce@exemplo.com --teste
 ```
 
