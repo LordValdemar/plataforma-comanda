@@ -6,9 +6,10 @@
   entrada, e o ponto aberto fecha sozinho quando o horário acaba.
 - O administrador vê quem está trabalhando, desconecta qualquer pessoa (todos os aparelhos)
   e tira o relatório de horas.
-- QR code (ligado por padrão): um aparelho fixo na loja mostra um QR que muda a cada 20 s e
-  vale 2 minutos. Só depois de ler esse QR com o celular a pessoa registra a entrada; assim
-  ninguém bate ponto de casa. A saída também pede o QR; sem ele, fica anotada no relatório.
+- QR code (ligado por padrão): um aparelho fixo na loja mostra um QR que muda a cada 2 minutos
+  e é de uso único: quando alguém o lê, ele deixa de valer e a tela mostra outro na hora. Só
+  depois de ler o QR com o celular a pessoa registra a entrada; assim ninguém bate ponto de
+  casa. A saída também pede o QR; sem ele, fica anotada no relatório.
 """
 
 import csv
@@ -31,8 +32,8 @@ bp = Blueprint("ponto", __name__)
 log = logging.getLogger("propagandas.ponto")
 
 MAX_DIAS_RELATORIO = 92
-QR_TROCA_SEGUNDOS = 20      # o QR da loja muda a cada 20 s
-QR_VALIDADE_SEGUNDOS = 120  # e cada um vale 2 minutos (tempo de abrir a câmera, ou de fazer login)
+QR_TROCA_SEGUNDOS = 120     # o QR da loja muda a cada 2 minutos (e a cada uso)
+QR_TOLERANCIA_SEGUNDOS = 30 # o QR que acabou de sair da tela ainda vale 30 s (quem estava lendo)
 PRESENCA_SEGUNDOS = 300     # depois de ler o QR, 5 minutos para tocar em "Registrar"
 SAIDA_SEM_QR = "saída sem QR code"
 
@@ -73,26 +74,70 @@ def codigo_quiosque(empresa_id, novo=False):
     return codigo
 
 
-def _assinatura(empresa_id, janela):
-    mensagem = f"{empresa_id}:{janela}".encode()
+def _assinatura(empresa_id, geracao, janela):
+    mensagem = f"{empresa_id}:{geracao}:{janela}".encode()
     return hmac.new(_segredo(empresa_id).encode(), mensagem, hashlib.sha256).hexdigest()[:24]
 
 
+def geracao_qr(empresa_id):
+    """Quantas vezes o QR da loja já foi usado: cada uso troca o código."""
+    try:
+        return int(db.ler_config(empresa_id, "ponto_qr_geracao") or 0)
+    except ValueError:
+        return 0
+
+
 def token_qr(empresa_id, agora=None):
+    geracao = geracao_qr(empresa_id)
     janela = int((agora or time.time()) // QR_TROCA_SEGUNDOS)
-    return f"{janela}-{_assinatura(empresa_id, janela)}"
+    return f"{geracao}-{janela}-{_assinatura(empresa_id, geracao, janela)}"
+
+
+def _ler_token(token):
+    try:
+        geracao, janela, assinatura = token.split("-", 2)
+        return int(geracao), int(janela), assinatura
+    except ValueError:
+        return None
+
+
+def situacao_token(empresa_id, token, agora=None):
+    """'valido', 'usado' (alguém já leu este QR) ou 'invalido' (vencido, falso ou de outra loja)."""
+    partes = _ler_token(token)
+    if partes is None:
+        return "invalido"
+    geracao, janela, assinatura = partes
+    if not hmac.compare_digest(assinatura, _assinatura(empresa_id, geracao, janela)):
+        return "invalido"
+    agora = agora or time.time()
+    atual = int(agora // QR_TROCA_SEGUNDOS)
+    recente = janela == atual or (janela == atual - 1 and agora % QR_TROCA_SEGUNDOS < QR_TOLERANCIA_SEGUNDOS)
+    if not recente:
+        return "invalido"
+    return "valido" if geracao == geracao_qr(empresa_id) else "usado"
 
 
 def token_valido(empresa_id, token, agora=None):
-    try:
-        janela_texto, assinatura = token.split("-", 1)
-        janela = int(janela_texto)
-    except ValueError:
+    return situacao_token(empresa_id, token, agora) == "valido"
+
+
+def usar_token(empresa_id, token):
+    """Gasta o QR: só a primeira pessoa que o lê consegue usar, e a tela da loja troca de código."""
+    if not token_valido(empresa_id, token):
         return False
-    atual = int((agora or time.time()) // QR_TROCA_SEGUNDOS)
-    if not 0 <= atual - janela < QR_VALIDADE_SEGUNDOS // QR_TROCA_SEGUNDOS:
-        return False
-    return hmac.compare_digest(assinatura, _assinatura(empresa_id, janela))
+    geracao = _ler_token(token)[0]
+    conexao = db.obter()
+    with conexao:
+        conexao.execute(
+            "INSERT OR IGNORE INTO configuracoes (empresa_id, chave, valor) VALUES (?, 'ponto_qr_geracao', '0')",
+            (empresa_id,),
+        )
+        # Troca atômica: se duas pessoas lerem o mesmo QR ao mesmo tempo, só uma consegue.
+        trocou = conexao.execute(
+            "UPDATE configuracoes SET valor = ? WHERE empresa_id = ? AND chave = 'ponto_qr_geracao' AND valor = ?",
+            (str(geracao + 1), empresa_id, str(geracao)),
+        ).rowcount
+    return trocou == 1
 
 
 def presenca_confirmada():
@@ -284,8 +329,11 @@ def ler_qr(slug, token):
     """Endereço do QR code da loja: o celular abre, e a presença fica confirmada por alguns minutos."""
     if slug != g.usuario["empresa_slug"]:
         flash("Este QR code é de outra loja.", "erro")
-    elif not token_valido(g.empresa_id, token):
-        flash("Este QR code venceu. Leia de novo o código que está na tela da loja.", "erro")
+    elif not usar_token(g.empresa_id, token):
+        if situacao_token(g.empresa_id, token) == "usado":
+            flash("Este QR code já foi usado por outra pessoa. Leia o código novo que está na tela da loja.", "erro")
+        else:
+            flash("Este QR code venceu. Leia de novo o código que está na tela da loja.", "erro")
     else:
         session["ponto_presenca"] = {"empresa": g.empresa_id, "ate": time.time() + PRESENCA_SEGUNDOS}
         flash("QR code lido. Confirme abaixo.", "ok")
@@ -315,13 +363,15 @@ def quiosque_api(codigo):
     if not ativo(empresa_id):
         resposta = {"ativo": False}
     else:
-        slug = db.obter().execute("SELECT slug FROM empresas WHERE id = ?", (empresa_id,)).fetchone()["slug"]
-        endereco = url_for("ponto.ler_qr", slug=slug, token=token_qr(empresa_id), _external=True)
-        resposta = {
-            "ativo": True,
-            "qr": segno.make(endereco, error="m").svg_data_uri(scale=10, border=2),
-            "troca_em": QR_TROCA_SEGUNDOS - int(time.time()) % QR_TROCA_SEGUNDOS,
-        }
+        # A tela pergunta a cada 2 s; o QR só vai na resposta quando mudou (outra versão).
+        token = token_qr(empresa_id)
+        versao = token.rsplit("-", 1)[0]
+        resposta = {"ativo": True, "versao": versao,
+                    "troca_em": QR_TROCA_SEGUNDOS - int(time.time()) % QR_TROCA_SEGUNDOS}
+        if request.args.get("versao") != versao:
+            slug = db.obter().execute("SELECT slug FROM empresas WHERE id = ?", (empresa_id,)).fetchone()["slug"]
+            endereco = url_for("ponto.ler_qr", slug=slug, token=token, _external=True)
+            resposta["qr"] = segno.make(endereco, error="m").svg_data_uri(scale=10, border=2)
     resposta = jsonify(resposta)
     resposta.headers["Cache-Control"] = "no-store"
     return resposta

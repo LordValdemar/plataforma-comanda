@@ -1,4 +1,5 @@
-// Tela do QR code do ponto: troca o código sozinha e mostra o relógio.
+// Tela do QR code do ponto: pergunta ao servidor a cada 2 segundos e troca o código quando
+// ele muda (a cada 2 minutos, ou logo depois que alguém usou o código atual).
 "use strict";
 
 (function () {
@@ -6,29 +7,44 @@
   const qr = document.getElementById("qr");
   const aviso = document.getElementById("aviso");
   const relogio = document.getElementById("relogio");
+  const AVISO_PADRAO = "Cada código vale para uma pessoa. Depois de ler, aguarde o próximo.";
+  let versao = "";
   let espera = null;
+  let fimDoAvisoUsado = 0;
+
+  function geracao(v) { return v ? v.split("-")[0] : ""; }
 
   async function atualizar() {
     clearTimeout(espera);
     try {
-      const resposta = await fetch(api, { cache: "no-store" });
+      const resposta = await fetch(api + "?versao=" + encodeURIComponent(versao), { cache: "no-store" });
       if (!resposta.ok) throw new Error("HTTP " + resposta.status);
       const dados = await resposta.json();
       if (!dados.ativo) {
         qr.removeAttribute("src");
+        versao = "";
         aviso.textContent = "O controle de ponto está desligado.";
         aviso.className = "aviso erro";
-        espera = setTimeout(atualizar, 30000);
-        return;
+      } else {
+        if (dados.qr) {
+          // Mudou a geração (não só o horário): alguém acabou de usar o código.
+          if (versao && geracao(dados.versao) !== geracao(versao)) fimDoAvisoUsado = Date.now() + 5000;
+          qr.src = dados.qr;
+          versao = dados.versao;
+        }
+        if (Date.now() < fimDoAvisoUsado) {
+          aviso.textContent = "✓ Código usado. Este é o novo código.";
+          aviso.className = "aviso ok";
+        } else {
+          aviso.textContent = AVISO_PADRAO;
+          aviso.className = "aviso";
+        }
       }
-      qr.src = dados.qr;
-      aviso.textContent = "O código muda a cada poucos segundos.";
-      aviso.className = "aviso";
-      espera = setTimeout(atualizar, Math.max(1, dados.troca_em) * 1000 + 300);
+      espera = setTimeout(atualizar, 2000);
     } catch (erro) {
       aviso.textContent = "Sem conexão com o servidor. Tentando de novo…";
       aviso.className = "aviso erro";
-      espera = setTimeout(atualizar, 10000);
+      espera = setTimeout(atualizar, 5000);
     }
   }
 

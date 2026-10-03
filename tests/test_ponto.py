@@ -236,10 +236,10 @@ def test_qr_vencido_falso_ou_de_outra_loja_nao_vale(logado, app):
     ligar_ponto(logado)
     joao = entrar(app, "joao")
     with app.app_context():
-        antigo = ponto.token_qr(1, agora=time.time() - ponto.QR_VALIDADE_SEGUNDOS - 30)
-        janela = ponto.token_qr(1).split("-")[0]
+        antigo = ponto.token_qr(1, agora=time.time() - 10 * 60)
+        versao = ponto.token_qr(1).rsplit("-", 1)[0]
     assert "venceu" in ler_qr(joao, app, token=antigo).get_data(as_text=True)
-    assert "venceu" in ler_qr(joao, app, token=f"{janela}-{'0' * 24}").get_data(as_text=True)
+    assert "venceu" in ler_qr(joao, app, token=f"{versao}-{'0' * 24}").get_data(as_text=True)
     assert "venceu" in ler_qr(joao, app, token="lixo").get_data(as_text=True)
 
     post(logado, "/plataforma/empresas/nova", {"nome": "Outra Loja", "usuario": "dono2", "senha": "senha-forte-123",
@@ -250,10 +250,33 @@ def test_qr_vencido_falso_ou_de_outra_loja_nao_vale(logado, app):
     assert consultar(app, "SELECT COUNT(*) FROM ponto_registros")[0][0] == 0
 
 
-def test_qr_de_um_minuto_atras_ainda_vale(logado, app):
+def test_qr_troca_a_cada_2_minutos_com_tolerancia(logado, app):
+    inicio = 15_000_000 * ponto.QR_TROCA_SEGUNDOS  # começo de uma janela de 2 minutos
     with app.app_context():
-        assert ponto.token_valido(1, ponto.token_qr(1, agora=time.time() - 60))
-        assert not ponto.token_valido(1, ponto.token_qr(1, agora=time.time() + 60))  # do futuro, não
+        token = ponto.token_qr(1, agora=inicio + 100)
+        assert ponto.token_valido(1, token, agora=inicio + 119)
+        assert ponto.token_valido(1, token, agora=inicio + 120 + 20)      # acabou de sair da tela: 30 s de tolerância
+        assert not ponto.token_valido(1, token, agora=inicio + 120 + 40)
+        assert not ponto.token_valido(1, ponto.token_qr(1, agora=inicio + 240), agora=inicio + 100)  # do futuro
+
+
+def test_qr_vale_para_uma_pessoa_so(logado, app):
+    criar_pessoa(app, "joao")
+    criar_pessoa(app, "maria")
+    ligar_ponto(logado)
+    joao, maria = entrar(app, "joao"), entrar(app, "maria")
+    with app.app_context():
+        token = ponto.token_qr(1)
+    assert "QR code lido" in ler_qr(joao, app, token=token).get_data(as_text=True)
+    # A Maria recebe a foto do mesmo QR: já foi usado.
+    assert "já foi usado" in ler_qr(maria, app, token=token).get_data(as_text=True)
+    post(maria, "/ponto/entrada")
+    assert consultar(app, "SELECT COUNT(*) FROM ponto_registros")[0][0] == 0
+    # O código novo da tela funciona para ela.
+    assert "QR code lido" in ler_qr(maria, app).get_data(as_text=True)
+    post(maria, "/ponto/entrada")
+    post(joao, "/ponto/entrada")
+    assert consultar(app, "SELECT COUNT(*) FROM ponto_registros")[0][0] == 2
 
 
 def test_saida_sem_qr_fica_anotada(logado, app):
@@ -278,7 +301,14 @@ def test_tela_do_qr_na_loja(logado, app):
 
     ligar_ponto(logado)
     dados = anonimo.get(api).get_json()
-    assert dados["ativo"] and dados["qr"].startswith("data:image/svg+xml") and 0 < dados["troca_em"] <= 20
+    assert dados["ativo"] and dados["qr"].startswith("data:image/svg+xml") and 0 < dados["troca_em"] <= 120
+    # Mesma versão: a tela não precisa baixar o QR de novo.
+    assert "qr" not in anonimo.get(api + "?versao=" + dados["versao"]).get_json()
+    # Alguém usou o código: a versão muda e a tela recebe o QR novo.
+    criar_pessoa(app, "joao")
+    ler_qr(entrar(app, "joao"), app)
+    novo = anonimo.get(api + "?versao=" + dados["versao"]).get_json()
+    assert novo["versao"] != dados["versao"] and novo["qr"] != dados["qr"]
 
     # Endereço novo: o antigo deixa de funcionar.
     post(logado, "/ponto/qr-ajustes", {"acao": "novo_endereco"})
