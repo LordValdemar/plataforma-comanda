@@ -1,4 +1,5 @@
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { font-family: system-ui, sans-serif; margin: 0; background: #f2f4f7; color: #1d2433; }
 header { background: #1d2433; color: #fff; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
 header h1 { margin: 0; font-size: 1.25rem; }
@@ -180,3 +181,8 @@ button.grande { font-size: 1.2rem; padding: 14px 28px; margin: 6px 0 4px; }
 .pessoa-topo form { margin: 0; }
 .ponto-qr-instrucao { font-size: 1.05rem; background: #eef4ff; border-radius: 8px; padding: 12px; }
 button.link-discreto { background: none; color: #6b7385; text-decoration: underline; padding: 4px; font-size: .85rem; white-space: normal; }
+.leitor-qr { margin: 14px 0 6px; }
+.leitor-qr > button { white-space: normal; max-width: 100%; }
+#leitor-video { width: 100%; max-width: 420px; aspect-ratio: 1; object-fit: cover; border-radius: 12px; background: #000; display: block; margin: 0 auto; }
+.leitor-aviso { margin: 10px 0; }
+.leitor-aviso.erro { color: #9b1c1c; }

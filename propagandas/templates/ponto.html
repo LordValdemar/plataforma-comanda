@@ -11,7 +11,16 @@
     <div class="ponto-relogio">● Trabalhando desde {{ registro.entrada|data_hora('%H:%M') }}</div>
     <p class="dica">Seu horário: {{ horario }}.</p>
     {% if exige_qr and not presenca %}
-      <p class="ponto-qr-instrucao">📷 Para registrar a saída, leia o <b>QR code do ponto</b> na loja com a câmera do celular.</p>
+      <p class="ponto-qr-instrucao">Para registrar a saída, leia o <b>QR code do ponto</b> que fica na tela da loja.</p>
+
+      <div class="leitor-qr">
+        <button type="button" id="abrir-camera" class="grande">📷 Abrir a câmera e ler o QR code</button>
+        <div id="leitor" hidden>
+          <video id="leitor-video" playsinline muted></video>
+          <p id="leitor-aviso" class="leitor-aviso"></p>
+          <button type="button" id="fechar-camera" class="secundario">Fechar a câmera</button>
+        </div>
+      </div>
     {% endif %}
     <div class="acoes">
       <a class="botao secundario" href="{{ inicio }}">Voltar ao trabalho</a>
@@ -32,8 +41,16 @@
   {% else %}
     <h2>Olá, {{ g.usuario.usuario }}!</h2>
     {% if no_horario and exige_qr and not presenca %}
-      <p class="ponto-qr-instrucao">📷 Para registrar a entrada, leia o <b>QR code do ponto</b> na loja com a câmera do celular.</p>
-      <p class="dica">O código fica na tela do ponto da loja e muda a cada poucos segundos.</p>
+      <p class="ponto-qr-instrucao">Para registrar a entrada, leia o <b>QR code do ponto</b> que fica na tela da loja.</p>
+      <div class="leitor-qr">
+        <button type="button" id="abrir-camera" class="grande">📷 Abrir a câmera e ler o QR code</button>
+        <div id="leitor" hidden>
+          <video id="leitor-video" playsinline muted></video>
+          <p id="leitor-aviso" class="leitor-aviso"></p>
+          <button type="button" id="fechar-camera" class="secundario">Fechar a câmera</button>
+        </div>
+      </div>
+      <p class="dica">Também dá para usar o app Câmera do celular: aponte para o QR e toque no link que aparecer.</p>
     {% elif no_horario %}
       <p>{{ 'QR code lido. ' if presenca else '' }}Registre a entrada para começar a usar o sistema.</p>
       <form action="{{ url_for('ponto.entrada') }}" method="post">
@@ -66,4 +83,8 @@
   </div>
 </section>
 {% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/jsqr/jsQR.js') }}"></script>
+<script src="{{ url_for('static', filename='ponto_leitor.js') }}"></script>
 {% endblock %}
