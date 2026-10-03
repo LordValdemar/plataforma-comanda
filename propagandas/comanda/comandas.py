@@ -7,7 +7,7 @@ import sqlite3
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
 
 from .. import db, modulos
-from .base import auditar, ler_config, papel_exigido, pode
+from .base import auditar, ler_config, papel_exigido, pode, pode_fechar_conta
 from .cardapio import agrupar, produtos_ativos
 from .formatos import ValorInvalido, agora_utc, entrada_reais, hoje_local, intervalo_utc, ler_reais, para_texto_utc, reais
 
@@ -366,8 +366,10 @@ def alterar_item(comanda_id, item_id):
 # ---------------------------------------------------------------------------
 
 @bp.route("/<int:comanda_id>/fechar", methods=["GET", "POST"])
-@papel_exigido("caixa")
+@papel_exigido("caixa", "garcom")
 def fechamento(comanda_id):
+    if not pode_fechar_conta():
+        abort(403)
     conexao = db.obter()
     comanda = buscar(conexao, comanda_id)
     if request.method == "POST":
@@ -418,7 +420,13 @@ def _ajustar_conta(conexao, comanda):
     if comanda["status"] != "aberta":
         raise ErroComanda("Esta comanda já foi fechada.")
     cobrar_taxa = 1 if request.form.get("cobrar_taxa") else 0
-    desconto = ler_reais(request.form.get("desconto"))
+    # O garçom autorizado tira ou devolve a taxa de serviço; desconto, só caixa e administrador.
+    if pode("caixa"):
+        desconto = ler_reais(request.form.get("desconto"))
+    elif "desconto" in request.form:
+        abort(403)
+    else:
+        desconto = comanda["desconto_centavos"]
     contas = totais(conexao, comanda)
     taxa = round(contas["subtotal"] * comanda["taxa_percentual"] / 100) if cobrar_taxa else 0
     if desconto > contas["subtotal"] + taxa:

@@ -15,7 +15,7 @@
   <div class="acoes">
     <a class="botao secundario" href="{{ url_for('comanda.lista') }}">← Comandas</a>
     <a class="botao secundario" href="{{ url_for('comanda.cupom', comanda_id=comanda.id) }}">Conferência</a>
-    {% if pode('caixa') and comanda.status == 'aberta' %}<a class="botao" href="{{ url_for('comanda.fechamento', comanda_id=comanda.id) }}">Fechar conta</a>{% endif %}
+    {% if pode_fechar_conta() and comanda.status == 'aberta' %}<a class="botao" href="{{ url_for('comanda.fechamento', comanda_id=comanda.id) }}">Fechar conta</a>{% endif %}
   </div>
   {% if comanda.status == 'aberta' %}
   <details>

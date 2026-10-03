@@ -305,3 +305,61 @@ def test_ajustes_taxa(logado):
     assert "R$ 22,50" in logado.get(f"/comanda/{comanda_id}/fechar").get_data(as_text=True)
     resposta = postar_c(logado, "/comanda/ajustes/", {"taxa_servico": "50"}, follow_redirects=True)
     assert "vai de 0 a 30" in resposta.get_data(as_text=True)
+
+
+def test_garcom_autorizado_fecha_conta(cliente, app):
+    from conftest import configurar_admin
+    configurar_admin(cliente)
+    lanche, _ = preparar(cliente)
+    criar_pessoa(app, "maria", "garcom")
+    with app.app_context():
+        maria = db.obter().execute("SELECT id FROM usuarios WHERE usuario = 'maria'").fetchone()["id"]
+    comanda_id = abrir_comanda(cliente, 5)
+    postar_c(cliente, f"/comanda/{comanda_id}/itens", {f"qtd_{lanche}": "1"})  # 20,00 + 10%
+
+    # Sem autorização, a garçonete não fecha.
+    entrar(cliente, "maria")
+    assert "Fechar conta" not in cliente.get(f"/comanda/{comanda_id}").get_data(as_text=True)
+    assert cliente.get(f"/comanda/{comanda_id}/fechar").status_code == 403
+    # Garçom não autoriza a si mesmo.
+    assert postar_c(cliente, f"/usuarios/{maria}/fecha-conta").status_code in (302, 403)
+    with app.app_context():
+        assert db.obter().execute("SELECT fecha_conta FROM usuarios WHERE id = ?", (maria,)).fetchone()[0] == 0
+
+    # O administrador autoriza.
+    entrar(cliente, "admin")
+    postar_c(cliente, f"/usuarios/{maria}/fecha-conta")
+    assert "fecha contas" in cliente.get("/usuarios").get_data(as_text=True)
+
+    entrar(cliente, "maria")
+    assert "Fechar conta" in cliente.get(f"/comanda/{comanda_id}").get_data(as_text=True)
+    pagina = cliente.get(f"/comanda/{comanda_id}/fechar").get_data(as_text=True)
+    assert "Taxa de serviço" in pagina and 'name="desconto"' not in pagina
+    # Desconto continua só com o caixa.
+    assert postar_c(cliente, f"/comanda/{comanda_id}/fechar", {"acao": "ajustar", "desconto": "5"}).status_code == 403
+    # A taxa de serviço ela pode tirar (fica no histórico da comanda).
+    postar_c(cliente, f"/comanda/{comanda_id}/fechar", {"acao": "ajustar"})
+    with app.app_context():
+        conexao = db.obter()
+        assert conexao.execute("SELECT cobrar_taxa FROM cmd_comandas WHERE id = ?", (comanda_id,)).fetchone()[0] == 0
+        assert conexao.execute("SELECT usuario_id FROM cmd_auditoria WHERE acao = 'taxa de serviço'").fetchone()[0] == maria
+    postar_c(cliente, f"/comanda/{comanda_id}/fechar", {"acao": "pagar", "forma": "pix", "valor": "20"})
+    postar_c(cliente, f"/comanda/{comanda_id}/fechar", {"acao": "finalizar"})
+    with app.app_context():
+        comanda = db.obter().execute("SELECT status, fechada_por FROM cmd_comandas WHERE id = ?", (comanda_id,)).fetchone()
+    assert comanda["status"] == "fechada" and comanda["fechada_por"] == maria
+    # Cancelar a comanda e ver o histórico continuam com o caixa.
+    assert cliente.get("/comanda/historico").status_code == 403
+
+    # Tirando a autorização, volta a não fechar.
+    entrar(cliente, "admin")
+    postar_c(cliente, f"/usuarios/{maria}/fecha-conta")
+    entrar(cliente, "maria")
+    assert cliente.get(f"/comanda/{comanda_id}/fechar").status_code == 403
+
+
+def test_so_garcom_recebe_a_permissao_de_fechar(logado, app):
+    criar_pessoa(app, "chef", "cozinha")
+    with app.app_context():
+        chef = db.obter().execute("SELECT id FROM usuarios WHERE usuario = 'chef'").fetchone()["id"]
+    assert postar_c(logado, f"/usuarios/{chef}/fecha-conta").status_code == 400

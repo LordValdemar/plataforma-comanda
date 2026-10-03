@@ -5,13 +5,14 @@ tabelas (cmd_*) tÃªm a empresa dona, e toda consulta filtra pela empresa do usuÃ
 """
 
 from . import ajustes, cardapio, comandas, cozinha, formatos, relatorios
-from .base import pode
+from .base import pode, pode_fechar_conta
 
 
 def registrar(app):
     for modulo in (cardapio, comandas, cozinha, relatorios, ajustes):
         app.register_blueprint(modulo.bp)
     app.jinja_env.globals["pode"] = pode
+    app.jinja_env.globals["pode_fechar_conta"] = pode_fechar_conta
     app.jinja_env.filters["data_hora"] = formatos.data_hora
     app.jinja_env.filters["hora"] = formatos.hora
     app.jinja_env.filters["minutos"] = formatos.minutos_desde

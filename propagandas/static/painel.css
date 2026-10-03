@@ -93,3 +93,4 @@ footer a { color: #6b7385; }
 .preco span { font-size: .9rem; font-weight: 400; color: #6b7385; }
 .bloqueado { text-align: center; }
 label.marcar { display: flex; gap: 8px; align-items: flex-start; color: #1d2433; font-size: .9rem; margin: 6px 0 14px; }
+.permissao-extra { display: flex; gap: 6px; align-items: center; margin-top: 4px; }

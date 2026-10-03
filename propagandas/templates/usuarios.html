@@ -11,7 +11,7 @@
       <label for="papel">Papel</label>
       <select id="papel" name="papel">
         {% if 'comanda' in g.modulos_empresa %}
-          <option value="garcom">Garçom: abre comandas e lança pedidos</option>
+          <option value="garcom">Garçom: abre comandas e lança pedidos (pode ganhar permissão para fechar contas)</option>
           <option value="cozinha">Cozinha: só a tela da cozinha</option>
           <option value="caixa">Caixa: fecha contas, cancela e vê as vendas</option>
         {% endif %}
@@ -35,7 +35,18 @@
       {% for u in usuarios %}
         <tr>
           <td>{{ u.usuario }}{% if u.id == g.usuario.id %} <span class="selo">você</span>{% endif %}</td>
-          <td>{{ PAPEIS[u.papel] }}{% if u.plataforma %} <span class="selo">plataforma</span>{% endif %}</td>
+          <td>{{ PAPEIS[u.papel] }}{% if u.plataforma %} <span class="selo">plataforma</span>{% endif %}
+            {% if u.papel == 'garcom' %}
+              <form action="{{ url_for('auth.alternar_fecha_conta', usuario_id=u.id) }}" method="post" class="permissao-extra">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if u.fecha_conta %}
+                  <span class="selo no-ar">fecha contas</span> <button class="secundario">Tirar</button>
+                {% else %}
+                  <button class="secundario" title="Recebe pagamentos, tira a taxa de serviço e finaliza a conta. Desconto e cancelamento continuam com o caixa.">Deixar fechar contas</button>
+                {% endif %}
+              </form>
+            {% endif %}
+          </td>
           <td>
             {% if u.totp_segredo %}
               <span class="selo no-ar">Ativada</span>

@@ -543,6 +543,22 @@ def excluir_usuario(usuario_id):
     return redirect(url_for("auth.usuarios"))
 
 
+@bp.route("/usuarios/<int:usuario_id>/fecha-conta", methods=["POST"])
+@login_obrigatorio("admin")
+def alternar_fecha_conta(usuario_id):
+    """Comanda: autoriza (ou não) um garçom a receber pagamentos e fechar contas."""
+    conexao = db.obter()
+    alvo = _usuario_da_empresa(conexao, usuario_id)
+    if alvo["papel"] != "garcom":
+        abort(400)
+    novo = 0 if alvo["fecha_conta"] else 1
+    with conexao:
+        conexao.execute("UPDATE usuarios SET fecha_conta = ? WHERE id = ?", (novo, usuario_id))
+    log.info("“%s” %s “%s” a fechar contas", g.usuario["usuario"], "autorizou" if novo else "desautorizou", alvo["usuario"])
+    flash(f"“{alvo['usuario']}” {'agora pode' if novo else 'não pode mais'} fechar contas.", "ok")
+    return redirect(url_for("auth.usuarios"))
+
+
 @bp.route("/usuarios/<int:usuario_id>/desativar-2fa", methods=["POST"])
 @login_obrigatorio("admin")
 def desativar_2fa_usuario(usuario_id):

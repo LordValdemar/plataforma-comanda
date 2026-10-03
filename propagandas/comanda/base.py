@@ -40,6 +40,13 @@ def pode(*papeis):
     return g.usuario is not None and (g.usuario["papel"] == "admin" or g.usuario["papel"] in papeis)
 
 
+def pode_fechar_conta():
+    """Caixa e administrador fecham contas; o garçom, só se o administrador autorizou."""
+    if pode("caixa"):
+        return True
+    return g.usuario is not None and g.usuario["papel"] == "garcom" and bool(g.usuario["fecha_conta"])
+
+
 def ler_config(chave, padrao=""):
     return db.ler_config(g.empresa_id, "comanda." + chave, padrao)
 

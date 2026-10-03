@@ -371,6 +371,10 @@ MIGRACOES = [
         detalhe     TEXT
     );
     """,
+    # 7 - Comanda: o administrador pode autorizar um garçom a fechar contas.
+    """
+    ALTER TABLE usuarios ADD COLUMN fecha_conta INTEGER NOT NULL DEFAULT 0;
+    """,
 ]
 
 
