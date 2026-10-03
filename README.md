@@ -1,8 +1,16 @@
-# 📺 Painel de Propagandas
+# 🌐 Plataforma Comercial Gustavo (Painel de Propagandas + Comanda)
 
-Sistema de **sinalização digital** para exibir propagandas em TVs e monitores de estabelecimentos comerciais (padarias, lojas, restaurantes, consultórios…). Feito em **Python + Flask**.
+Versão **online** do sistema, para rodar numa VPS com domínio próprio (ex.: `comercialgustavo.com.br`): cada loja cria a conta, assina um plano e usa os módulos dele, com os próprios usuários.
 
-Serve para **usar nas suas lojas** e para **vender como serviço**: cada cliente é uma empresa com os dados isolados, e você administra todos pelo painel da plataforma.
+| Repositório | Para quê |
+|---|---|
+| **plataforma-comanda** (este) | Site online de assinatura: Painel + Comanda + cobrança pelo Asaas |
+| [Comanda](https://github.com/LordValdemar/Comanda) | Comanda **local**, no servidor da loja (funciona sem internet) |
+| [S](https://github.com/LordValdemar/S) | Painel de Propagandas **local** |
+
+Os três são independentes: atualizar um não muda os outros. Esta plataforma nasceu do código do Painel de Propagandas (a história dos commits foi mantida).
+
+Instalação na VPS: [docs/HOSPEDAGEM.md](docs/HOSPEDAGEM.md) (seção 6.1 para os planos, a Comanda e o cadastro aberto).
 
 ## Plataforma de assinatura: Painel + Comanda
 
