@@ -13,6 +13,7 @@ const INICIO = Date.now();
 const UM_DIA = 24 * 60 * 60 * 1000;
 
 let itens = [];        // última lista recebida (usada se o servidor cair)
+let pausado = false;   // a loja pausou todas as propagandas no painel
 let posicao = -1;
 let textoLetreiro = null;
 let temporizador = null;
@@ -32,6 +33,7 @@ async function atualizarLista() {
     if (!resposta.ok) throw new Error("HTTP " + resposta.status);
     const dados = await resposta.json();
     itens = dados.itens;
+    pausado = Boolean(dados.pausado);
     mostrarLetreiro(dados.letreiro);
     preCarregar(itens);
     return true;
@@ -131,6 +133,13 @@ async function proxima() {
     return;
   }
 
+  if (pausado) {
+    // Pausa pelo painel: tela preta, sem aviso, até alguém retomar.
+    tela.innerHTML = "";
+    aviso.style.display = "none";
+    temporizador = setTimeout(seguir, 10000);
+    return;
+  }
   if (itens.length === 0) {
     tela.innerHTML = "";
     aviso.textContent = "Nenhuma propaganda no ar nesta tela.";
@@ -181,6 +190,14 @@ function telaCheia() {
 }
 document.addEventListener("click", telaCheia);
 document.addEventListener("keydown", e => { if (e.key === "f" || e.key === "F") telaCheia(); });
+
+// Enquanto uma propaganda está na tela (um vídeo pode ser longo), confere a cada
+// 15 segundos se a loja pausou, para a TV parar sem esperar a propaganda acabar.
+setInterval(async () => {
+  if (pausado || !atual) return;
+  const rodadaAtual = rodada;
+  if (await atualizarLista() && pausado && rodadaAtual === rodada) proxima();
+}, 15000);
 
 if (URL_PULSO) {
   enviarPulso();

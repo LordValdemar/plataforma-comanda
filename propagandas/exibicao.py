@@ -52,8 +52,9 @@ def propagandas_no_ar(empresa_id, tela=None):
     ]
 
 
-def _resposta_playlist(itens, letreiro):
+def _resposta_playlist(itens, letreiro, pausado=False):
     resposta = jsonify({
+        "pausado": pausado,
         "itens": [
             {
                 "id": item["id"],
@@ -107,6 +108,8 @@ def player():
 
 @bp.route("/api/playlist")
 def playlist():
+    if db.ler_config(EMPRESA_PRINCIPAL, "pausado") == "1":
+        return _resposta_playlist([], "", pausado=True)
     return _resposta_playlist(propagandas_no_ar(EMPRESA_PRINCIPAL), db.ler_config(EMPRESA_PRINCIPAL, "letreiro"))
 
 
@@ -132,6 +135,8 @@ def playlist_tela(codigo):
     _registrar_contato(tela)
     if not empresa_ativa(tela["empresa_id"]):
         return _resposta_playlist([], "")
+    if db.ler_config(tela["empresa_id"], "pausado") == "1":
+        return _resposta_playlist([], "", pausado=True)
     letreiro = tela["letreiro"] if tela["letreiro"] else db.ler_config(tela["empresa_id"], "letreiro")
     return _resposta_playlist(propagandas_no_ar(tela["empresa_id"], tela), letreiro)
 

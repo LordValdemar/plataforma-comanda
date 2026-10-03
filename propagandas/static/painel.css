@@ -94,3 +94,55 @@ footer a { color: #6b7385; }
 .bloqueado { text-align: center; }
 label.marcar { display: flex; gap: 8px; align-items: flex-start; color: #1d2433; font-size: .9rem; margin: 6px 0 14px; }
 .permissao-extra { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+/* Propagandas: pausa geral, lista compacta e ações em várias de uma vez */
+.pausa-geral { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-left: 6px solid #22a447; }
+.pausa-geral strong { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; }
+.pausa-geral .dica { margin-top: 2px; }
+.pausa-geral form { margin: 0; }
+.pausa-geral.pausada { border-left-color: #d93b3b; background: #fff5f5; }
+.duas-colunas { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.duas-colunas > section { margin-bottom: 20px; }
+.cabecalho-lista { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cabecalho-lista h2 { margin: 0; }
+.marcar-todas { display: inline-flex; gap: 6px; align-items: center; margin: 0; color: #1d2433; font-size: .9rem; cursor: pointer; }
+.lista-propagandas { margin-top: 10px; }
+.prop { display: grid; grid-template-columns: auto 140px 1fr auto; gap: 6px 14px; align-items: center; padding: 12px 10px; border-top: 1px solid #eee; border-radius: 8px; }
+.prop:first-child { border-top: 0; }
+.prop.marcada { background: #eaf1ff; }
+.prop.desativada .miniatura, .prop.desativada .prop-nome { opacity: .55; }
+.prop-marca { margin: 0; padding: 8px 4px; cursor: pointer; }
+.prop-marca input { width: 20px; height: 20px; cursor: pointer; }
+.prop-miniatura { position: relative; }
+.prop-posicao { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,.65); color: #fff; font-size: .75rem; padding: 1px 7px; border-radius: 10px; }
+.prop-nome { font-weight: 600; word-break: break-word; }
+.prop-selos { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
+.prop-ordem { display: flex; flex-direction: column; gap: 4px; }
+.prop-ordem form { margin: 0; }
+button.pequeno { padding: 4px 10px; }
+.prop-editar { grid-column: 3 / 4; margin: 0; border: 0; padding: 0; }
+.prop-editar summary { display: inline-block; font-size: .85rem; padding: 2px 0; }
+.prop-editar[open] { grid-column: 1 / -1; border: 1px solid #e6e9f0; padding: 8px 12px; margin-top: 6px; }
+.prop-editar h3 { font-size: .95rem; margin: 16px 0 6px; }
+.prop-editar .excluir-uma { margin: 12px 0 4px; padding-top: 12px; border-top: 1px dashed #e6e9f0; }
+.rotulo-telas { font-size: .8rem; color: #6b7385; text-transform: uppercase; letter-spacing: .03em; margin-top: 6px; }
+.lista-telas.apagada { opacity: .4; pointer-events: none; }
+/* Barra fixa no rodapé para as selecionadas */
+.barra-lote.sem-selecao { display: none; }
+.barra-lote { position: sticky; bottom: 0; z-index: 5; margin: 0 -4px; }
+.barra-lote-conteudo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #1d2433; color: #fff; padding: 10px 14px; border-radius: 10px 10px 0 0; box-shadow: 0 -2px 10px rgba(0,0,0,.15); }
+.barra-lote .contador { margin-right: auto; color: #cfd6e4; }
+.barra-lote.com-selecao .contador { color: #fff; }
+.painel-lote { position: relative; margin: 0; border: 0; padding: 0; }
+.painel-lote summary { list-style: none; color: #1d2433; font-size: 1rem; }
+.painel-lote summary::-webkit-details-marker { display: none; }
+.painel-lote-corpo { position: absolute; bottom: calc(100% + 10px); left: 0; width: min(420px, 90vw); max-height: 60vh; overflow: auto; background: #fff; color: #1d2433; border-radius: 10px; padding: 14px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+.painel-lote-corpo > button { margin-top: 10px; }
+@media (max-width: 760px) {
+  .duas-colunas { grid-template-columns: 1fr; gap: 0; }
+  .prop { grid-template-columns: auto 96px 1fr; }
+  .prop .miniatura { width: 96px; height: 56px; }
+  .prop-ordem { grid-column: 2 / 3; flex-direction: row; }
+  .prop-editar { grid-column: 3 / 4; }
+  .painel-lote { position: static; }
+  .painel-lote-corpo { left: 8px; right: 8px; width: auto; }
+}

@@ -1,5 +1,6 @@
 import csv
 import io
+import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
@@ -264,3 +265,69 @@ def test_webhook_nao_acessa_rede_interna(logado, monkeypatch):
     resposta = postar(logado, "/empresa", {"nome": "Minha", "alerta_webhook": "https://metadados.exemplo/x"}, pagina="/empresa")
     assert "endereço interno" in resposta.get_data(as_text=True)
     assert consultar(logado, "SELECT alerta_webhook FROM empresas WHERE id = 1")[0]["alerta_webhook"] == ""
+
+
+def test_mudar_telas_de_varias_propagandas_de_uma_vez(logado):
+    sp, rj = criar_grupo(logado, "SP"), criar_grupo(logado, "RJ")
+    tela_sp, tela_rj = criar_tela(logado, "Loja SP", sp), criar_tela(logado, "Loja RJ", rj)
+    a, b, c = (nova_propaganda(logado, f"{n}.png") for n in "abc")
+
+    # Trocar: a e b passam a aparecer só no grupo SP; c continua em todas.
+    postar(logado, "/lote", {"ids": [str(a), str(b)], "acao": "telas", "modo": "trocar",
+                             "destino": "escolher", "grupos": [str(sp)]})
+    assert ids_na_tela(logado, tela_sp) == [a, b, c]
+    assert ids_na_tela(logado, tela_rj) == [c]
+
+    # Acrescentar: a ganha também o RJ, sem perder o SP.
+    postar(logado, "/lote", {"ids": [str(a)], "acao": "telas", "modo": "acrescentar",
+                             "destino": "escolher", "grupos": [str(rj)]})
+    assert ids_na_tela(logado, tela_rj) == [a, c]
+    assert a in ids_na_tela(logado, tela_sp)
+
+    # Tirar: a e b saem do SP.
+    postar(logado, "/lote", {"ids": [str(a), str(b)], "acao": "telas", "modo": "tirar",
+                             "destino": "escolher", "grupos": [str(sp)]})
+    assert ids_na_tela(logado, tela_sp) == [c]
+    assert ids_na_tela(logado, tela_rj) == [a, c]
+
+    # Todas as telas de volta, para as três.
+    postar(logado, "/lote", {"ids": [str(a), str(b), str(c)], "acao": "telas", "destino": "todas"})
+    assert ids_na_tela(logado, tela_sp) == [a, b, c] and ids_na_tela(logado, tela_rj) == [a, b, c]
+    assert consultar(logado, "SELECT COUNT(*) FROM propaganda_destinos")[0][0] == 0
+
+
+def test_ativar_desativar_tempo_e_excluir_em_lote(logado):
+    tela = criar_tela(logado, "Balcão")
+    a, b, c = (nova_propaganda(logado, f"{n}.png") for n in "abc")
+
+    postar(logado, "/lote", {"ids": [str(a), str(c)], "acao": "desativar"})
+    assert ids_na_tela(logado, tela) == [b]
+    postar(logado, "/lote", {"ids": [str(a)], "acao": "ativar"})
+    assert ids_na_tela(logado, tela) == [a, b]
+
+    postar(logado, "/lote", {"ids": [str(a), str(b)], "acao": "tempo", "duracao": "25"})
+    assert [r[0] for r in consultar(logado, "SELECT duracao FROM propagandas ORDER BY id")] == [25, 25, 7]
+
+    # Sem nada marcado, não faz nada.
+    resposta = postar(logado, "/lote", {"acao": "desativar"}, follow_redirects=True)
+    assert "Marque pelo menos uma propaganda" in resposta.get_data(as_text=True)
+
+    postar(logado, "/lote", {"ids": [str(b), str(c)], "acao": "excluir"})
+    assert [r[0] for r in consultar(logado, "SELECT id FROM propagandas")] == [a]
+    assert len(os.listdir(logado.application.config["PASTA_MIDIA"])) == 1
+
+
+def test_pausar_todas_as_propagandas(logado):
+    tela = criar_tela(logado, "Balcão")
+    a = nova_propaganda(logado, "a.png")
+    postar(logado, "/letreiro", {"letreiro": "Promoção"})
+
+    postar(logado, "/pausa", {"acao": "pausar"})
+    dados = logado.get(f"/api/tela/{tela['codigo']}/playlist").get_json()
+    assert dados["pausado"] is True and dados["itens"] == [] and dados["letreiro"] == ""
+    assert logado.get("/api/playlist").get_json()["pausado"] is True
+    assert "Propagandas pausadas" in logado.get("/").get_data(as_text=True)
+
+    postar(logado, "/pausa", {"acao": "retomar"})
+    dados = logado.get(f"/api/tela/{tela['codigo']}/playlist").get_json()
+    assert dados["pausado"] is False and [i["id"] for i in dados["itens"]] == [a]

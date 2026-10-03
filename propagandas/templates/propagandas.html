@@ -1,134 +1,202 @@
 {% extends "base.html" %}
 {% block titulo %}Propagandas{% endblock %}
 {% block conteudo %}
-<section>
-  <h2>Adicionar propagandas</h2>
-  <form action="{{ url_for('painel.enviar') }}" method="post" enctype="multipart/form-data" class="linha">
+{% set no_ar = situacoes.values()|selectattr(0, 'equalto', 'no_ar')|list|length %}
+
+{# Pausa geral: para todas as TVs da loja de uma vez. #}
+<section class="pausa-geral {{ 'pausada' if pausado else 'rodando' }}">
+  <div>
+    {% if pausado %}
+      <strong>⏸ Propagandas pausadas</strong>
+      <div class="dica">As TVs estão com a tela preta. Nada é exibido até você retomar.</div>
+    {% else %}
+      <strong><span class="status online"></span>Propagandas rodando</strong>
+      <div class="dica">{{ no_ar }} de {{ itens|length }} no ar agora (as outras estão desativadas ou fora do horário).</div>
+    {% endif %}
+  </div>
+  <form action="{{ url_for('painel.pausa') }}" method="post"
+        {% if not pausado %}data-confirmar="Pausar todas as propagandas? As TVs ficam com a tela preta até você retomar."{% endif %}>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div style="flex:3">
-      <label for="arquivos">Imagens ou vídeos ({{ extensoes }})</label>
+    {% if pausado %}
+      <button name="acao" value="retomar">▶ Retomar as propagandas</button>
+    {% else %}
+      <button name="acao" value="pausar" class="perigo">⏸ Pausar todas</button>
+    {% endif %}
+  </form>
+</section>
+
+<div class="duas-colunas">
+  <section>
+    <h2>Adicionar propagandas</h2>
+    <form action="{{ url_for('painel.enviar') }}" method="post" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="arquivos">Imagens ou vídeos ({{ extensoes }}). Pode escolher vários de uma vez.</label>
       <input type="file" id="arquivos" name="arquivos" multiple required accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm">
-    </div>
-    <div>
-      <label for="duracao">Tempo de cada imagem (s)</label>
-      <input type="number" id="duracao" name="duracao" value="10" min="1" max="3600">
-    </div>
-    <div class="fixo"><button type="submit">Enviar</button></div>
-  </form>
-  {% if empresa.limite_mb is not none %}
-    {% set porcentagem = [100, (uso.mb / empresa.limite_mb * 100) if empresa.limite_mb else 100]|min %}
-    <div class="uso {% if porcentagem >= 90 %}cheio{% endif %}" style="margin-top:12px"><span style="width: {{ porcentagem|round }}%"></span></div>
-    <p class="dica" style="margin:0">Armazenamento: {{ '%.1f'|format(uso.mb) }} MB de {{ empresa.limite_mb }} MB do seu plano.</p>
-  {% endif %}
-</section>
+      <div class="linha" style="margin-top:10px">
+        <div>
+          <label for="duracao">Tempo de cada imagem (segundos)</label>
+          <input type="number" id="duracao" name="duracao" value="10" min="1" max="3600">
+        </div>
+        <div class="fixo"><button type="submit">Enviar</button></div>
+      </div>
+    </form>
+    {% if empresa.limite_mb is not none %}
+      {% set porcentagem = [100, (uso.mb / empresa.limite_mb * 100) if empresa.limite_mb else 100]|min %}
+      <div class="uso {% if porcentagem >= 90 %}cheio{% endif %}" style="margin-top:12px"><span style="width: {{ porcentagem|round }}%"></span></div>
+      <p class="dica" style="margin:0">Armazenamento: {{ '%.1f'|format(uso.mb) }} MB de {{ empresa.limite_mb }} MB do seu plano.</p>
+    {% endif %}
+  </section>
 
-<section>
-  <h2>Letreiro (texto rolando no rodapé)</h2>
-  <form action="{{ url_for('painel.letreiro') }}" method="post" class="linha">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div style="flex:4">
-      <input type="text" name="letreiro" value="{{ letreiro }}" maxlength="500" aria-label="Texto do letreiro"
+  <section>
+    <h2>Letreiro</h2>
+    <form action="{{ url_for('painel.letreiro') }}" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="letreiro">Texto que rola no rodapé das TVs</label>
+      <input type="text" id="letreiro" name="letreiro" value="{{ letreiro }}" maxlength="500"
              placeholder="Ex.: Promoção de pão francês: R$ 12,90 o kg! • Aceitamos PIX">
-    </div>
-    <div class="fixo"><button type="submit">Salvar</button></div>
-  </form>
-  <p class="dica" style="margin-bottom:0">Deixe em branco para esconder o letreiro.</p>
-</section>
+      <div class="linha" style="margin-top:10px">
+        <div><span class="dica">Deixe em branco para esconder.</span></div>
+        <div class="fixo"><button type="submit">Salvar</button></div>
+      </div>
+    </form>
+  </section>
+</div>
 
 <section>
-  <h2>Sequência de exibição ({{ itens|length }})</h2>
+  <div class="cabecalho-lista">
+    <h2>Sequência de exibição ({{ itens|length }})</h2>
+    {% if itens %}
+      <label class="marcar-todas"><input type="checkbox" id="marcar-todas"> Selecionar todas</label>
+    {% endif %}
+  </div>
   {% if not itens %}
     <p class="dica">Nenhuma propaganda cadastrada ainda. Envie imagens ou vídeos acima.</p>
+  {% else %}
+    <p class="dica" style="margin-top:0">Marque várias propagandas para mudar as telas, o tempo ou ativar/desativar todas de uma vez.</p>
   {% endif %}
+
+  <div class="lista-propagandas">
   {% for item in itens %}
     {% set url = url_for('exibicao.midia', arquivo=item.arquivo) %}
-    <div class="item">
-      <div>
+    {% set codigo, texto = situacoes[item.id] %}
+    {% set destino = destinos.get(item.id, {"telas": [], "grupos": [], "nomes": []}) %}
+    <div class="prop {% if not item.ativo %}desativada{% endif %}">
+      <label class="prop-marca" title="Selecionar">
+        <input type="checkbox" name="ids" value="{{ item.id }}" form="form-lote" aria-label="Selecionar {{ item.nome }}">
+      </label>
+      <div class="prop-miniatura">
+        <span class="prop-posicao">{{ loop.index }}</span>
         {% if item.tipo == 'video' %}
           <video class="miniatura" src="{{ url }}" muted preload="metadata"></video>
         {% else %}
-          <img class="miniatura" src="{{ url }}" alt="">
+          <img class="miniatura" src="{{ url }}" alt="" loading="lazy">
         {% endif %}
-        <div style="margin-top:6px">
-          {% set codigo, texto = situacoes[item.id] %}
+      </div>
+      <div class="prop-info">
+        <div class="prop-nome">{{ item.nome }}</div>
+        <div class="prop-selos">
           <span class="selo {{ 'no-ar' if codigo == 'no_ar' else 'fora' }}">{{ texto }}</span>
-          <span class="selo">{{ 'Vídeo' if item.tipo == 'video' else 'Imagem' }}</span>
+          <span class="selo">{{ 'Vídeo' if item.tipo == 'video' else 'Imagem · ' ~ item.duracao ~ ' s' }}</span>
+        </div>
+        <div class="resumo">
+          📺 {% if item.para_todas %}Todas as telas{% elif destino.nomes %}{{ destino.nomes|join(', ') }}{% else %}<span class="selo alerta">Nenhuma tela: escolha um destino</span>{% endif %}
+          <br>🗓 {{ agenda.resumo_dias(item.dias_semana) }}, {{ agenda.resumo_horario(item.hora_inicio, item.hora_fim) }}
+          {%- if item.inicio or item.fim %} · de {{ item.inicio or '…' }} até {{ item.fim or '…' }}{% endif %}
         </div>
       </div>
-      <div>
+      <div class="prop-ordem">
+        <form action="{{ url_for('painel.mover', propaganda_id=item.id, direcao='cima') }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="secundario pequeno" title="Subir" aria-label="Subir" {% if loop.first %}disabled{% endif %}>↑</button>
+        </form>
+        <form action="{{ url_for('painel.mover', propaganda_id=item.id, direcao='baixo') }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="secundario pequeno" title="Descer" aria-label="Descer" {% if loop.last %}disabled{% endif %}>↓</button>
+        </form>
+      </div>
+
+      <details class="prop-editar">
+        <summary>Editar</summary>
         <form action="{{ url_for('painel.atualizar', propaganda_id=item.id) }}" method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="linha">
             <div style="flex:2"><label>Nome</label><input type="text" name="nome" value="{{ item.nome }}" maxlength="200"></div>
             <div>
-              <label>{{ 'Tempo (s): o vídeo sempre toca até o fim' if item.tipo == 'video' else 'Tempo na tela (s)' }}</label>
+              <label>{{ 'Tempo (s): o vídeo toca até o fim' if item.tipo == 'video' else 'Tempo na tela (s)' }}</label>
               <input type="number" name="duracao" value="{{ item.duracao }}" min="1" max="3600">
             </div>
+            <div class="fixo"><label class="marcar"><input type="checkbox" name="ativo" {% if item.ativo %}checked{% endif %}> Ativa</label></div>
           </div>
-          <div class="linha" style="margin-top:8px">
+
+          <h3>Quando aparece</h3>
+          <div class="opcoes">
+            {% for nome_dia in dias %}
+              <label><input type="checkbox" name="dias" value="{{ loop.index0 }}" {% if loop.index0|string in item.dias_semana %}checked{% endif %}> {{ nome_dia }}</label>
+            {% endfor %}
+          </div>
+          <div class="linha">
+            <div><label>Das (opcional)</label><input type="time" name="hora_inicio" value="{{ item.hora_inicio or '' }}"></div>
+            <div><label>Até (opcional)</label><input type="time" name="hora_fim" value="{{ item.hora_fim or '' }}"></div>
             <div><label>Começa em (opcional)</label><input type="date" name="inicio" value="{{ item.inicio or '' }}"></div>
             <div><label>Termina em (opcional)</label><input type="date" name="fim" value="{{ item.fim or '' }}"></div>
-            <div><label><input type="checkbox" name="ativo" {% if item.ativo %}checked{% endif %}> Ativo</label></div>
           </div>
-          {% set destino = destinos.get(item.id, {"telas": [], "grupos": [], "nomes": []}) %}
-          <div class="resumo">
-            🗓 {{ agenda.resumo_dias(item.dias_semana) }}, {{ agenda.resumo_horario(item.hora_inicio, item.hora_fim) }}
-            · 📺 {% if item.para_todas %}Todas as telas{% elif destino.nomes %}{{ destino.nomes|join(', ') }}{% else %}<span class="selo alerta">Nenhuma tela: escolha um destino</span>{% endif %}
-          </div>
-          <details>
-            <summary>Agendamento e telas</summary>
-            <label style="margin-top:8px">Dias da semana</label>
-            <div class="opcoes">
-              {% for nome_dia in dias %}
-                <label><input type="checkbox" name="dias" value="{{ loop.index0 }}" {% if loop.index0|string in item.dias_semana %}checked{% endif %}> {{ nome_dia }}</label>
-              {% endfor %}
-            </div>
-            <div class="linha">
-              <div><label>Das (opcional)</label><input type="time" name="hora_inicio" value="{{ item.hora_inicio or '' }}"></div>
-              <div><label>Até (opcional)</label><input type="time" name="hora_fim" value="{{ item.hora_fim or '' }}"></div>
-            </div>
-            <p class="dica" style="margin:6px 0 12px">Ex.: café da manhã das 06:00 às 10:00. Pode virar a noite (22:00 às 02:00).</p>
-            <label>Em quais telas aparece</label>
-            <div class="opcoes">
-              <label><input type="radio" name="destino" value="todas" {% if item.para_todas %}checked{% endif %}> Todas as telas</label>
-              <label><input type="radio" name="destino" value="escolher" {% if not item.para_todas %}checked{% endif %}> Só nas escolhidas abaixo</label>
-            </div>
-            {% if grupos %}
-              <div class="opcoes">
-                {% for gr in grupos %}
-                  <label><input type="checkbox" name="grupos" value="{{ gr.id }}" {% if gr.id in destino.grupos %}checked{% endif %}> Grupo {{ gr.nome }}</label>
-                {% endfor %}
-              </div>
-            {% endif %}
-            {% if telas %}
-              <div class="opcoes">
-                {% for t in telas %}
-                  <label><input type="checkbox" name="telas" value="{{ t.id }}" {% if t.id in destino.telas %}checked{% endif %}> {{ t.nome }}</label>
-                {% endfor %}
-              </div>
-            {% endif %}
-            {% if not telas and not grupos %}
-              <p class="dica">Nenhuma tela cadastrada ainda{% if g.usuario.papel == 'admin' %}: cadastre em <a href="{{ url_for('telas.lista') }}">Telas</a>{% endif %}.</p>
-            {% endif %}
-          </details>
+          <p class="dica" style="margin:6px 0 0">Ex.: café da manhã das 06:00 às 10:00. Pode virar a noite (22:00 às 02:00).</p>
+
+          <h3>Em quais telas</h3>
+          {% with para_todas=item.para_todas, marcadas_telas=destino.telas, marcados_grupos=destino.grupos %}
+            {% include "_escolher_telas.html" %}
+          {% endwith %}
+
           <div class="acoes"><button type="submit">Salvar</button></div>
         </form>
-        <div class="acoes">
-          <form action="{{ url_for('painel.mover', propaganda_id=item.id, direcao='cima') }}" method="post">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="secundario" {% if loop.first %}disabled{% endif %}>↑ Subir</button>
-          </form>
-          <form action="{{ url_for('painel.mover', propaganda_id=item.id, direcao='baixo') }}" method="post">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="secundario" {% if loop.last %}disabled{% endif %}>↓ Descer</button>
-          </form>
-          <form action="{{ url_for('painel.excluir', propaganda_id=item.id) }}" method="post" data-confirmar="Excluir esta propaganda?">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="perigo">Excluir</button>
-          </form>
-        </div>
-      </div>
+        <form action="{{ url_for('painel.excluir', propaganda_id=item.id) }}" method="post" data-confirmar="Excluir “{{ item.nome }}”?" class="excluir-uma">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="perigo">Excluir esta propaganda</button>
+        </form>
+      </details>
     </div>
   {% endfor %}
+  </div>
 </section>
+
+{% if itens %}
+{# Ações em várias propagandas: as caixas da lista usam form="form-lote". #}
+<form id="form-lote" class="barra-lote" action="{{ url_for('painel.lote') }}" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="barra-lote-conteudo">
+    <span class="contador"><b id="qtd-marcadas">0</b> selecionada(s)</span>
+
+    <details class="painel-lote">
+      <summary class="botao secundario">📺 Telas e grupos</summary>
+      <div class="painel-lote-corpo">
+        <label for="lote-modo">O que fazer com as selecionadas</label>
+        <select id="lote-modo" name="modo">
+          <option value="trocar">Aparecer SÓ nas telas marcadas abaixo</option>
+          <option value="acrescentar">Acrescentar as telas marcadas (mantém as que já tinham)</option>
+          <option value="tirar">Tirar das telas marcadas</option>
+        </select>
+        {% with para_todas=False, marcadas_telas=[], marcados_grupos=[] %}
+          {% include "_escolher_telas.html" %}
+        {% endwith %}
+        <button type="submit" name="acao" value="telas">Aplicar nas selecionadas</button>
+      </div>
+    </details>
+
+    <details class="painel-lote">
+      <summary class="botao secundario">⏱ Tempo</summary>
+      <div class="painel-lote-corpo">
+        <label for="lote-duracao">Tempo na tela de cada imagem (segundos)</label>
+        <input type="number" id="lote-duracao" name="duracao" value="10" min="1" max="3600">
+        <p class="dica">Vídeos sempre tocam até o fim.</p>
+        <button type="submit" name="acao" value="tempo">Aplicar nas selecionadas</button>
+      </div>
+    </details>
+
+    <button type="submit" name="acao" value="ativar" class="secundario">▶ Ativar</button>
+    <button type="submit" name="acao" value="desativar" class="secundario">⏸ Desativar</button>
+    <button type="submit" name="acao" value="excluir" class="perigo">Excluir</button>
+  </div>
+</form>
+{% endif %}
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='propagandas.js') }}"></script>{% endblock %}

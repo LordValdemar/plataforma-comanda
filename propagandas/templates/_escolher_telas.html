@@ -1,0 +1,28 @@
+{# Escolha de telas e grupos. Recebe: prefixo, para_todas, marcadas_telas, marcados_grupos. #}
+<div class="escolher-telas" data-escolher-telas>
+  <div class="opcoes">
+    <label><input type="radio" name="destino" value="todas" {% if para_todas %}checked{% endif %}> Todas as telas</label>
+    <label><input type="radio" name="destino" value="escolher" {% if not para_todas %}checked{% endif %}> Só nas escolhidas</label>
+  </div>
+  <div class="lista-telas">
+    {% if grupos %}
+      <div class="rotulo-telas">Grupos</div>
+      <div class="opcoes">
+        {% for gr in grupos %}
+          <label><input type="checkbox" name="grupos" value="{{ gr.id }}" {% if gr.id in marcados_grupos %}checked{% endif %}> {{ gr.nome }}</label>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% if telas %}
+      <div class="rotulo-telas">Telas</div>
+      <div class="opcoes">
+        {% for t in telas %}
+          <label><input type="checkbox" name="telas" value="{{ t.id }}" {% if t.id in marcadas_telas %}checked{% endif %}> {{ t.nome }}</label>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% if not telas and not grupos %}
+      <p class="dica">Nenhuma tela cadastrada ainda{% if g.usuario.papel == 'admin' %}: cadastre em <a href="{{ url_for('telas.lista') }}">Telas</a>{% endif %}.</p>
+    {% endif %}
+  </div>
+</div>

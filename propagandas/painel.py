@@ -83,6 +83,32 @@ def destinos_por_propaganda(conexao):
     return resultado
 
 
+def esta_pausado(empresa_id):
+    """Pausa geral: as TVs da loja ficam sem propagandas até alguém retomar."""
+    return db.ler_config(empresa_id, "pausado") == "1"
+
+
+def ler_destinos(conexao, formulario):
+    """Telas e grupos marcados no formulário, só os da empresa logada."""
+    ids_telas = {r["id"] for r in conexao.execute("SELECT id FROM telas WHERE empresa_id = ?", (g.empresa_id,))}
+    ids_grupos = {r["id"] for r in conexao.execute("SELECT id FROM grupos WHERE empresa_id = ?", (g.empresa_id,))}
+    telas = {int(v) for v in formulario.getlist("telas") if v.isdigit()} & ids_telas
+    grupos = {int(v) for v in formulario.getlist("grupos") if v.isdigit()} & ids_grupos
+    return telas, grupos
+
+
+def gravar_destinos(conexao, propaganda_id, telas, grupos):
+    conexao.execute("DELETE FROM propaganda_destinos WHERE propaganda_id = ?", (propaganda_id,))
+    conexao.executemany(
+        "INSERT INTO propaganda_destinos (propaganda_id, tela_id) VALUES (?, ?)",
+        [(propaganda_id, t) for t in sorted(telas)],
+    )
+    conexao.executemany(
+        "INSERT INTO propaganda_destinos (propaganda_id, grupo_id) VALUES (?, ?)",
+        [(propaganda_id, gr) for gr in sorted(grupos)],
+    )
+
+
 def buscar(conexao, propaganda_id):
     # Sempre filtrando pela empresa: o id na URL de outra empresa dá 404.
     item = conexao.execute(
@@ -111,6 +137,7 @@ def lista():
         dias=agenda.DIAS,
         agenda=agenda,
         letreiro=db.ler_config(g.empresa_id, "letreiro"),
+        pausado=esta_pausado(g.empresa_id),
         empresa=planos.empresa(conexao, g.empresa_id),
         uso=planos.uso(conexao, g.empresa_id),
         extensoes=", ".join(sorted(e.upper() for e in EXTENSOES)),
@@ -180,10 +207,7 @@ def atualizar(propaganda_id):
     dias = "".join(d for d in agenda.TODOS_OS_DIAS if d in formulario.getlist("dias"))
     para_todas = formulario.get("destino", "todas") == "todas"
 
-    ids_telas = {r["id"] for r in conexao.execute("SELECT id FROM telas WHERE empresa_id = ?", (g.empresa_id,))}
-    ids_grupos = {r["id"] for r in conexao.execute("SELECT id FROM grupos WHERE empresa_id = ?", (g.empresa_id,))}
-    telas_escolhidas = {int(v) for v in formulario.getlist("telas") if v.isdigit()} & ids_telas
-    grupos_escolhidos = {int(v) for v in formulario.getlist("grupos") if v.isdigit()} & ids_grupos
+    telas_escolhidas, grupos_escolhidos = ler_destinos(conexao, formulario)
 
     erro = None
     if inicio and fim and fim < inicio:
@@ -220,16 +244,10 @@ def atualizar(propaganda_id):
                 g.empresa_id,
             ),
         )
-        conexao.execute("DELETE FROM propaganda_destinos WHERE propaganda_id = ?", (propaganda_id,))
-        if not para_todas:
-            conexao.executemany(
-                "INSERT INTO propaganda_destinos (propaganda_id, tela_id) VALUES (?, ?)",
-                [(propaganda_id, t) for t in sorted(telas_escolhidas)],
-            )
-            conexao.executemany(
-                "INSERT INTO propaganda_destinos (propaganda_id, grupo_id) VALUES (?, ?)",
-                [(propaganda_id, gr) for gr in sorted(grupos_escolhidos)],
-            )
+        if para_todas:
+            gravar_destinos(conexao, propaganda_id, set(), set())
+        else:
+            gravar_destinos(conexao, propaganda_id, telas_escolhidas, grupos_escolhidos)
     log.info("“%s” alterou a propaganda “%s”", g.usuario["usuario"], nome)
     flash("Alterações salvas.", "ok")
     return redirect(url_for("painel.lista"))
@@ -259,18 +277,113 @@ def mover(propaganda_id, direcao):
     return redirect(url_for("painel.lista"))
 
 
-@bp.route("/propaganda/<int:propaganda_id>/excluir", methods=["POST"])
-@login_obrigatorio()
-def excluir(propaganda_id):
-    conexao = db.obter()
-    item = buscar(conexao, propaganda_id)
+def _excluir(conexao, item):
     with conexao:
-        conexao.execute("DELETE FROM propagandas WHERE id = ? AND empresa_id = ?", (propaganda_id, g.empresa_id))
+        conexao.execute("DELETE FROM propagandas WHERE id = ? AND empresa_id = ?", (item["id"], g.empresa_id))
     caminho = os.path.join(current_app.config["PASTA_MIDIA"], item["arquivo"])
     if os.path.exists(caminho):
         os.remove(caminho)
     log.info("“%s” excluiu a propaganda “%s”", g.usuario["usuario"], item["nome"])
+
+
+@bp.route("/propaganda/<int:propaganda_id>/excluir", methods=["POST"])
+@login_obrigatorio()
+def excluir(propaganda_id):
+    conexao = db.obter()
+    _excluir(conexao, buscar(conexao, propaganda_id))
     flash("Propaganda excluída.", "ok")
+    return redirect(url_for("painel.lista"))
+
+
+@bp.route("/lote", methods=["POST"])
+@login_obrigatorio()
+def lote():
+    """Aplica a mesma mudança em várias propagandas marcadas na lista."""
+    conexao = db.obter()
+    formulario = request.form
+    marcados = {int(v) for v in formulario.getlist("ids") if v.isdigit()}
+    itens = [
+        item for item in conexao.execute(
+            "SELECT * FROM propagandas WHERE empresa_id = ? ORDER BY posicao, id", (g.empresa_id,)
+        ) if item["id"] in marcados
+    ]
+    acao = formulario.get("acao", "")
+    if not itens:
+        flash("Marque pelo menos uma propaganda na lista.", "erro")
+        return redirect(url_for("painel.lista"))
+    ids = [item["id"] for item in itens]
+    marcas = ",".join("?" * len(ids))
+
+    if acao in ("ativar", "desativar"):
+        with conexao:
+            conexao.execute(
+                f"UPDATE propagandas SET ativo = ? WHERE empresa_id = ? AND id IN ({marcas})",
+                (1 if acao == "ativar" else 0, g.empresa_id, *ids),
+            )
+        mensagem = f"{len(ids)} propaganda(s) {'ativada(s)' if acao == 'ativar' else 'desativada(s)'}."
+    elif acao == "tempo":
+        duracao = ler_duracao(formulario.get("duracao"))
+        with conexao:
+            conexao.execute(
+                f"UPDATE propagandas SET duracao = ? WHERE empresa_id = ? AND id IN ({marcas})",
+                (duracao, g.empresa_id, *ids),
+            )
+        mensagem = f"Tempo de {duracao} s aplicado em {len(ids)} propaganda(s)."
+    elif acao == "telas":
+        modo = formulario.get("modo", "trocar")
+        telas, grupos = ler_destinos(conexao, formulario)
+        if formulario.get("destino") == "todas":
+            with conexao:
+                conexao.execute(
+                    f"UPDATE propagandas SET para_todas = 1 WHERE empresa_id = ? AND id IN ({marcas})", (g.empresa_id, *ids)
+                )
+                for item_id in ids:
+                    gravar_destinos(conexao, item_id, set(), set())
+            mensagem = f"{len(ids)} propaganda(s) agora aparecem em todas as telas."
+        elif not telas and not grupos:
+            flash("Marque pelo menos uma tela ou grupo.", "erro")
+            return redirect(url_for("painel.lista"))
+        elif modo not in ("trocar", "acrescentar", "tirar"):
+            abort(400)
+        else:
+            atuais = destinos_por_propaganda(conexao)
+            with conexao:
+                for item in itens:
+                    destino = atuais.get(item["id"], {"telas": set(), "grupos": set()})
+                    # "Todas as telas" não tem lista: acrescentar/tirar parte do zero.
+                    telas_atuais = set() if item["para_todas"] else set(destino["telas"])
+                    grupos_atuais = set() if item["para_todas"] else set(destino["grupos"])
+                    if modo == "trocar":
+                        novas_telas, novos_grupos = telas, grupos
+                    elif modo == "acrescentar":
+                        novas_telas, novos_grupos = telas_atuais | telas, grupos_atuais | grupos
+                    else:
+                        novas_telas, novos_grupos = telas_atuais - telas, grupos_atuais - grupos
+                    conexao.execute("UPDATE propagandas SET para_todas = 0 WHERE id = ?", (item["id"],))
+                    gravar_destinos(conexao, item["id"], novas_telas, novos_grupos)
+            mensagem = f"Telas atualizadas em {len(ids)} propaganda(s)."
+    elif acao == "excluir":
+        for item in itens:
+            _excluir(conexao, item)
+        mensagem = f"{len(ids)} propaganda(s) excluída(s)."
+    else:
+        abort(400)
+    log.info("“%s” aplicou “%s” em %d propaganda(s)", g.usuario["usuario"], acao, len(ids))
+    flash(mensagem, "ok")
+    return redirect(url_for("painel.lista"))
+
+
+@bp.route("/pausa", methods=["POST"])
+@login_obrigatorio()
+def pausa():
+    """Pausa (ou retoma) todas as propagandas da loja em todas as TVs."""
+    pausar = request.form.get("acao") == "pausar"
+    db.gravar_config(g.empresa_id, "pausado", "1" if pausar else "")
+    log.info("“%s” %s as propagandas", g.usuario["usuario"], "pausou" if pausar else "retomou")
+    if pausar:
+        flash("Propagandas pausadas. As TVs ficam com a tela preta em até 15 segundos.", "ok")
+    else:
+        flash("Propagandas no ar de novo.", "ok")
     return redirect(url_for("painel.lista"))
 
 

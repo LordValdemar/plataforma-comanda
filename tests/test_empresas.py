@@ -305,3 +305,19 @@ def test_migra_banco_da_versao_2_mantendo_os_dados(tmp_path):
 def test_paginas_legais_publicas(cliente):
     assert "LGPD" in cliente.get("/privacidade").get_data(as_text=True)
     assert cliente.get("/termos").status_code == 200
+
+
+def test_lote_e_pausa_nao_alcancam_outra_empresa(duas_empresas):
+    dono, joao, _ = duas_empresas
+    enviar(dono, "do-dono.png", PNG)
+    pid = consultar(dono, "SELECT id FROM propagandas")[0]["id"]
+
+    # O cliente marca a propaganda do dono pelo id: nada acontece.
+    postar(joao, "/lote", {"ids": [str(pid)], "acao": "excluir"})
+    postar(joao, "/lote", {"ids": [str(pid)], "acao": "desativar"})
+    assert consultar(dono, "SELECT ativo FROM propagandas WHERE id = ?", pid)[0][0] == 1
+
+    # A pausa do cliente não para as TVs do dono.
+    postar(joao, "/pausa", {"acao": "pausar"})
+    assert dono.get("/api/playlist").get_json()["pausado"] is False
+    assert [i["id"] for i in dono.get("/api/playlist").get_json()["itens"]] == [pid]
