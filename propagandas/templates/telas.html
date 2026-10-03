@@ -9,7 +9,7 @@
   <h2>Cadastrar tela{% if empresa.limite_telas is not none %} <span class="dica">({{ uso.telas }} de {{ empresa.limite_telas }} do seu plano)</span>{% endif %}</h2>
   <form action="{{ url_for('telas.nova') }}" method="post" class="linha">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div style="flex:2"><label for="nome-tela">Nome</label><input type="text" id="nome-tela" name="nome" required maxlength="100" placeholder="Ex.: Loja Centro: Balcão"></div>
+    <div class="u-f2"><label for="nome-tela">Nome</label><input type="text" id="nome-tela" name="nome" required maxlength="100" placeholder="Ex.: Loja Centro: Balcão"></div>
     <div>
       <label for="grupo-tela">Grupo</label>
       <select id="grupo-tela" name="grupo_id">
@@ -19,7 +19,7 @@
     </div>
     <div class="fixo"><button type="submit">Cadastrar</button></div>
   </form>
-  <p class="dica" style="margin-bottom:0">Cada tela recebe um endereço próprio. Abra esse endereço no navegador da TV. O painel passa a mostrar se ela está ligada, o que está exibindo e quantas vezes cada propaganda passou.</p>
+  <p class="dica u-mb0">Cada tela recebe um endereço próprio. Abra esse endereço no navegador da TV. O painel passa a mostrar se ela está ligada, o que está exibindo e quantas vezes cada propaganda passou.</p>
 </section>
 
 <section>
@@ -28,12 +28,12 @@
   {% for t in telas %}
     {% set endereco = url_for('exibicao.tela', codigo=t.codigo, _external=True) %}
     <div class="tela">
-      <div class="linha" style="align-items:center; justify-content:space-between">
-        <div style="flex:2">
+      <div class="linha u-entre">
+        <div class="u-f2">
           <strong>{{ t.nome }}</strong>
           {% if t.grupo_nome %}<span class="selo">{{ t.grupo_nome }}</span>{% endif %}
         </div>
-        <div style="flex:3; text-align:right">
+        <div class="u-f3 u-dir">
           {% if not t.ultimo_contato %}
             <span class="status">Nunca conectou</span>
           {% elif online[t.id] %}
@@ -51,10 +51,10 @@
       <p class="endereco">{{ endereco }}</p>
       <details>
         <summary>Editar</summary>
-        <form action="{{ url_for('telas.atualizar', tela_id=t.id) }}" method="post" style="margin-top:8px">
+        <form action="{{ url_for('telas.atualizar', tela_id=t.id) }}" method="post" class="u-mt8">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="linha">
-            <div style="flex:2"><label>Nome</label><input type="text" name="nome" value="{{ t.nome }}" maxlength="100"></div>
+            <div class="u-f2"><label>Nome</label><input type="text" name="nome" value="{{ t.nome }}" maxlength="100"></div>
             <div>
               <label>Grupo</label>
               <select name="grupo_id">
@@ -63,7 +63,7 @@
               </select>
             </div>
           </div>
-          <div class="campo" style="margin-top:8px">
+          <div class="campo u-mt8">
             <label>Letreiro próprio (em branco = usa o geral{% if letreiro_geral %}: “{{ letreiro_geral|truncate(40) }}”{% endif %})</label>
             <input type="text" name="letreiro" value="{{ t.letreiro or '' }}" maxlength="500">
           </div>
@@ -89,17 +89,17 @@
   <p class="dica">Agrupe telas (ex.: “Lojas de SP”, “Caixas”) para enviar propagandas a todas de uma vez.</p>
   <form action="{{ url_for('telas.novo_grupo') }}" method="post" class="linha">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div style="flex:3"><input type="text" name="nome" required maxlength="100" placeholder="Nome do grupo" aria-label="Nome do grupo"></div>
+    <div class="u-f3"><input type="text" name="nome" required maxlength="100" placeholder="Nome do grupo" aria-label="Nome do grupo"></div>
     <div class="fixo"><button type="submit">Criar grupo</button></div>
   </form>
   {% if grupos %}
-    <table style="margin-top:12px">
+    <table class="u-mt12">
       <tbody>
         {% for gr in grupos %}
           <tr>
             <td>{{ gr.nome }}</td>
             <td class="dica">{{ gr.total }} tela(s)</td>
-            <td style="text-align:right">
+            <td class="u-dir">
               <form action="{{ url_for('telas.excluir_grupo', grupo_id=gr.id) }}" method="post" data-confirmar="Excluir o grupo {{ gr.nome }}? As telas continuam cadastradas, só ficam sem grupo.">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="perigo">Excluir</button>

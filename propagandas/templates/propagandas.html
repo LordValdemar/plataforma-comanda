@@ -32,7 +32,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="arquivos">Imagens ou vídeos ({{ extensoes }}). Pode escolher vários de uma vez.</label>
       <input type="file" id="arquivos" name="arquivos" multiple required accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm">
-      <div class="linha" style="margin-top:10px">
+      <div class="linha u-mt10">
         <div>
           <label for="duracao">Tempo de cada imagem (segundos)</label>
           <input type="number" id="duracao" name="duracao" value="10" min="1" max="3600">
@@ -42,8 +42,8 @@
     </form>
     {% if empresa.limite_mb is not none %}
       {% set porcentagem = [100, (uso.mb / empresa.limite_mb * 100) if empresa.limite_mb else 100]|min %}
-      <div class="uso {% if porcentagem >= 90 %}cheio{% endif %}" style="margin-top:12px"><span style="width: {{ porcentagem|round }}%"></span></div>
-      <p class="dica" style="margin:0">Armazenamento: {{ '%.1f'|format(uso.mb) }} MB de {{ empresa.limite_mb }} MB do seu plano.</p>
+      <div class="uso u-mt12 {% if porcentagem >= 90 %}cheio{% endif %}"><span data-largura="{{ porcentagem|round|int }}"></span></div>
+      <p class="dica u-m0">Armazenamento: {{ '%.1f'|format(uso.mb) }} MB de {{ empresa.limite_mb }} MB do seu plano.</p>
     {% endif %}
   </section>
 
@@ -54,7 +54,7 @@
       <label for="letreiro">Texto que rola no rodapé das TVs, igual para todas as propagandas</label>
       <input type="text" id="letreiro" name="letreiro" value="{{ letreiro }}" maxlength="500"
              placeholder="Ex.: Promoção de pão francês: R$ 12,90 o kg! • Aceitamos PIX">
-      <div class="linha" style="margin-top:10px">
+      <div class="linha u-mt10">
         <div><span class="dica">Deixe em branco para esconder. Cada propaganda pode ter um letreiro próprio (em Editar).</span></div>
         <div class="fixo"><button type="submit">Salvar</button></div>
       </div>
@@ -72,7 +72,7 @@
   {% if not itens %}
     <p class="dica">Nenhuma propaganda cadastrada ainda. Envie imagens ou vídeos acima.</p>
   {% else %}
-    <p class="dica" style="margin-top:0">Marque várias propagandas para mudar as telas, o tempo ou ativar/desativar todas de uma vez.</p>
+    <p class="dica u-mt0">Marque várias propagandas para mudar as telas, o tempo ou ativar/desativar todas de uma vez.</p>
   {% endif %}
 
   <div class="lista-propagandas">
@@ -121,7 +121,7 @@
         <form action="{{ url_for('painel.atualizar', propaganda_id=item.id) }}" method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="linha">
-            <div style="flex:2"><label>Nome</label><input type="text" name="nome" value="{{ item.nome }}" maxlength="200"></div>
+            <div class="u-f2"><label>Nome</label><input type="text" name="nome" value="{{ item.nome }}" maxlength="200"></div>
             <div>
               <label>{{ 'Tempo (s): o vídeo toca até o fim' if item.tipo == 'video' else 'Tempo na tela (s)' }}</label>
               <input type="number" name="duracao" value="{{ item.duracao }}" min="1" max="3600">
@@ -141,7 +141,7 @@
             <div><label>Começa em (opcional)</label><input type="date" name="inicio" value="{{ item.inicio or '' }}"></div>
             <div><label>Termina em (opcional)</label><input type="date" name="fim" value="{{ item.fim or '' }}"></div>
           </div>
-          <p class="dica" style="margin:6px 0 0">Ex.: café da manhã das 06:00 às 10:00. Pode virar a noite (22:00 às 02:00).</p>
+          <p class="dica u-mt6">Ex.: café da manhã das 06:00 às 10:00. Pode virar a noite (22:00 às 02:00).</p>
 
           <h3>Letreiro durante esta propaganda</h3>
           {% with atual=item.letreiro %}{% include "_escolher_letreiro.html" %}{% endwith %}

@@ -27,14 +27,14 @@
               <td>
                 <details>
                   <summary>Editar</summary>
-                  <form action="{{ url_for('cobranca.atualizar_plano', plano_id=p.id) }}" method="post" class="linha" style="margin-top:8px">
+                  <form action="{{ url_for('cobranca.atualizar_plano', plano_id=p.id) }}" method="post" class="linha u-mt8">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div><label>Nome</label><input type="text" name="nome" value="{{ p.nome }}" maxlength="60" required></div>
                     <div><label>Preço (R$)</label><input type="text" name="preco" value="{{ '%.2f'|format(p.preco_centavos / 100)|replace('.', ',') }}" required inputmode="decimal"></div>
                     <div><label>Telas</label><input type="number" name="limite_telas" min="0" value="{{ p.limite_telas if p.limite_telas is not none else '' }}" placeholder="sem limite"></div>
                     <div><label>MB</label><input type="number" name="limite_mb" min="0" value="{{ p.limite_mb if p.limite_mb is not none else '' }}" placeholder="sem limite"></div>
 <div class="fixo"><input type="hidden" name="modulos_enviados" value="1">{% for m, nome_m in MODULOS.items() %}<label><input type="checkbox" name="modulos" value="{{ m }}" {% if m in ler_modulos(p.modulos) %}checked{% endif %}> {{ nome_m }}</label> {% endfor %}</div>
-                    <div style="flex-basis:100%"><label>Descrição (aparece na página de planos)</label><input type="text" name="descricao" value="{{ p.descricao }}" maxlength="200"></div>
+                    <div class="u-b100"><label>Descrição (aparece na página de planos)</label><input type="text" name="descricao" value="{{ p.descricao }}" maxlength="200"></div>
                     <div class="fixo"><label><input type="checkbox" name="ativo" {% if p.ativo %}checked{% endif %}> Ativo (à venda)</label></div>
                     <div class="fixo"><button type="submit">Salvar</button></div>
                   </form>
@@ -46,14 +46,14 @@
       </table>
     </div>
   {% endif %}
-  <form action="{{ url_for('cobranca.novo_plano') }}" method="post" class="linha" style="margin-top:12px">
+  <form action="{{ url_for('cobranca.novo_plano') }}" method="post" class="linha u-mt12">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div><label for="plano-nome">Novo plano</label><input type="text" id="plano-nome" name="nome" maxlength="60" required placeholder="Ex.: Básico"></div>
     <div><label for="plano-preco">Preço/mês (R$)</label><input type="text" id="plano-preco" name="preco" required inputmode="decimal" placeholder="49,90"></div>
     <div><label for="plano-telas">Telas</label><input type="number" id="plano-telas" name="limite_telas" min="0" placeholder="sem limite"></div>
     <div><label for="plano-mb">Armazenamento (MB)</label><input type="number" id="plano-mb" name="limite_mb" min="0" placeholder="sem limite"></div>
     <div class="fixo"><input type="hidden" name="modulos_enviados" value="1">{% for m, nome_m in MODULOS.items() %}<label><input type="checkbox" name="modulos" value="{{ m }}" {% if m == 'painel' %}checked{% endif %}> {{ nome_m }}</label> {% endfor %}</div>
-    <div style="flex-basis:100%"><label for="plano-descricao">Descrição (opcional)</label><input type="text" id="plano-descricao" name="descricao" maxlength="200" placeholder="Ex.: ideal para lanchonetes"></div>
+    <div class="u-b100"><label for="plano-descricao">Descrição (opcional)</label><input type="text" id="plano-descricao" name="descricao" maxlength="200" placeholder="Ex.: ideal para lanchonetes"></div>
     <div class="fixo"><button type="submit">Criar plano</button></div>
   </form>
 </section>
@@ -63,18 +63,18 @@
   <form action="{{ url_for('plataforma.nova') }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="linha">
-      <div style="flex:2"><label for="nome">Nome da empresa</label><input type="text" id="nome" name="nome" required maxlength="100"></div>
+      <div class="u-f2"><label for="nome">Nome da empresa</label><input type="text" id="nome" name="nome" required maxlength="100"></div>
       <div><label for="limite_telas">Limite de telas</label><input type="number" id="limite_telas" name="limite_telas" min="0" placeholder="sem limite"></div>
       <div><label for="limite_mb">Armazenamento (MB)</label><input type="number" id="limite_mb" name="limite_mb" min="0" placeholder="sem limite"></div>
     </div>
-    <div class="linha" style="margin-top:8px"><span class="dica">Liberar sem plano (cobrança à parte):</span> <div class="fixo"><input type="hidden" name="modulos_enviados" value="1">{% for m, nome_m in MODULOS.items() %}<label><input type="checkbox" name="modulos" value="{{ m }}" {% if m == 'painel' %}checked{% endif %}> {{ nome_m }}</label> {% endfor %}</div></div>
-    <div class="linha" style="margin-top:8px">
+    <div class="linha u-mt8"><span class="dica">Liberar sem plano (cobrança à parte):</span> <div class="fixo"><input type="hidden" name="modulos_enviados" value="1">{% for m, nome_m in MODULOS.items() %}<label><input type="checkbox" name="modulos" value="{{ m }}" {% if m == 'painel' %}checked{% endif %}> {{ nome_m }}</label> {% endfor %}</div></div>
+    <div class="linha u-mt8">
       <div><label for="usuario">Usuário do administrador do cliente</label><input type="text" id="usuario" name="usuario" required maxlength="50" autocomplete="off"></div>
       <div><label for="senha">Senha inicial (mín. 8)</label><input type="password" id="senha" name="senha" required minlength="8" autocomplete="new-password"></div>
       <div class="fixo"><button type="submit">Criar empresa</button></div>
     </div>
   </form>
-  <p class="dica" style="margin-bottom:0">Envie o usuário e a senha para o cliente. Recomende que ele troque a senha e ative a verificação em duas etapas em “Minha conta”.</p>
+  <p class="dica u-mb0">Envie o usuário e a senha para o cliente. Recomende que ele troque a senha e ative a verificação em duas etapas em “Minha conta”.</p>
 </section>
 
 <section>
@@ -101,7 +101,7 @@
             </td>
           </tr>
           <tr>
-            <td colspan="6" style="border-top:0; padding-top:0">
+            <td colspan="6" class="u-junto">
               <details>
                 <summary>{% if e.id != principal %}Cobrança / {% endif %}Editar / suspender{% if e.id != principal %} / excluir{% endif %}</summary>
                 {% if e.id != principal %}
@@ -143,7 +143,7 @@
                     </div>
                   {% endif %}
                   {% if faturas.get(e.id) %}
-                    <table style="margin-top:8px">
+                    <table class="u-mt8">
                       <tbody>
                         {% for f in faturas[e.id] %}
                           {% set rotulo, cor = STATUS.get(f.status, (f.status, "")) %}
@@ -159,14 +159,14 @@
                   {% endif %}
                   <h4>Plano e acesso</h4>
                 {% endif %}
-                <form action="{{ url_for('plataforma.atualizar', empresa_id=e.id) }}" method="post" class="linha" style="margin-top:8px">
+                <form action="{{ url_for('plataforma.atualizar', empresa_id=e.id) }}" method="post" class="linha u-mt8">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <div style="flex:2"><label>Nome</label><input type="text" name="nome" value="{{ e.nome }}" maxlength="100"></div>
+                  <div class="u-f2"><label>Nome</label><input type="text" name="nome" value="{{ e.nome }}" maxlength="100"></div>
                   <div><label>Limite de telas</label><input type="number" name="limite_telas" min="0" value="{{ e.limite_telas if e.limite_telas is not none else '' }}" placeholder="sem limite"></div>
                   <div><label>Armazenamento (MB)</label><input type="number" name="limite_mb" min="0" value="{{ e.limite_mb if e.limite_mb is not none else '' }}" placeholder="sem limite"></div>
                   {% if e.id != principal %}
                     <div class="fixo"><label><input type="checkbox" name="ativa" {% if e.ativa %}checked{% endif %}> Ativa</label></div>
-                    <div style="flex-basis:100%" class="dica">Liberar à mão, além do plano:</div>
+                    <div class="dica u-b100">Liberar à mão, além do plano:</div>
                     <div class="fixo"><input type="hidden" name="modulos_enviados" value="1">{% for m, nome_m in MODULOS.items() %}<label><input type="checkbox" name="modulos" value="{{ m }}" {% if m in ler_modulos(e.modulos_liberados) %}checked{% endif %}> {{ nome_m }}</label> {% endfor %}</div>
                   {% endif %}
                   <div class="fixo"><button type="submit">Salvar</button></div>
@@ -175,7 +175,7 @@
                   <p class="dica">Suspender bloqueia o acesso ao painel e deixa as TVs do cliente sem propagandas. Os dados são mantidos. Para liberar um cliente em atraso por alguns dias, desmarque “Bloquear por atraso” antes de reativar; senão, ele é suspenso de novo na próxima verificação.</p>
                   <form action="{{ url_for('plataforma.excluir', empresa_id=e.id) }}" method="post" class="linha" data-confirmar="Excluir {{ e.nome }} e TODOS os dados (propagandas, telas, relatórios)? Isso não pode ser desfeito.">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div style="flex:2"><label>Para excluir, digite o nome da empresa</label><input type="text" name="confirmacao" autocomplete="off"></div>
+                    <div class="u-f2"><label>Para excluir, digite o nome da empresa</label><input type="text" name="confirmacao" autocomplete="off"></div>
                     <div class="fixo"><button class="perigo" type="submit">Excluir empresa</button></div>
                   </form>
                 {% endif %}

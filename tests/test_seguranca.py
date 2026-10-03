@@ -1,3 +1,7 @@
+import os
+import re
+from datetime import datetime, timedelta, timezone
+
 from conftest import configurar_admin, csrf, postar
 from propagandas import auth
 
@@ -91,3 +95,28 @@ def test_cabecalhos_e_cookie_de_sessao(cliente):
     permissoes = resposta.headers["Permissions-Policy"]
     assert "camera=()" in permissoes and "screen-wake-lock=(self)" in permissoes
     assert resposta.headers["Cache-Control"] == "no-store"
+
+
+def test_security_txt(app):
+    cliente = app.test_client()
+    assert cliente.get("/.well-known/security.txt").status_code == 404  # sem contato configurado
+    app.config["CONTATO_PLATAFORMA"] = "seguranca@exemplo.com.br"
+    resposta = cliente.get("/.well-known/security.txt", base_url="https://loja.exemplo.com.br")
+    texto = resposta.get_data(as_text=True)
+    assert resposta.status_code == 200 and resposta.mimetype == "text/plain"
+    assert "Contact: mailto:seguranca@exemplo.com.br" in texto
+    assert "Canonical: https://loja.exemplo.com.br/.well-known/security.txt" in texto
+    validade = re.search(r"Expires: (\S+)", texto).group(1)
+    assert datetime.fromisoformat(validade.replace("Z", "+00:00")) > datetime.now(timezone.utc) + timedelta(days=150)
+
+
+def test_csp_sem_estilo_embutido(logado):
+    csp = logado.get("/").headers["Content-Security-Policy"]
+    assert "unsafe-inline" not in csp and "style-src 'self'" in csp
+    # Nenhuma página do sistema pode depender de estilo embutido (seria bloqueado pela CSP).
+    pasta = os.path.join(os.path.dirname(__file__), "..", "propagandas", "templates")
+    for raiz, _, arquivos in os.walk(pasta):
+        for nome in arquivos:
+            with open(os.path.join(raiz, nome), encoding="utf-8") as arquivo:
+                html = arquivo.read()
+            assert 'style="' not in html and "<style" not in html, nome

@@ -51,7 +51,7 @@
             {% if u.totp_segredo %}
               <span class="selo no-ar">Ativada</span>
               {% if u.id != g.usuario.id %}
-                <form action="{{ url_for('auth.desativar_2fa_usuario', usuario_id=u.id) }}" method="post" style="display:inline" data-confirmar="Desativar a verificação em duas etapas de {{ u.usuario }}? Use só se a pessoa perdeu o celular.">
+                <form action="{{ url_for('auth.desativar_2fa_usuario', usuario_id=u.id) }}" method="post" data-confirmar="Desativar a verificação em duas etapas de {{ u.usuario }}? Use só se a pessoa perdeu o celular." class="u-inline">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="secundario">Desativar</button>
                 </form>

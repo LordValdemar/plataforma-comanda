@@ -8,7 +8,7 @@
     <p><span class="selo no-ar">Ativada</span> Ao entrar, além da senha, é pedido o código do aplicativo autenticador.</p>
     <details>
       <summary>Desativar</summary>
-      <form action="{{ url_for('auth.desativar_2fa_proprio') }}" method="post" class="linha" style="margin-top:8px">
+      <form action="{{ url_for('auth.desativar_2fa_proprio') }}" method="post" class="linha u-mt8">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div><label>Senha</label><input type="password" name="senha" required autocomplete="current-password"></div>
         <div><label>Código do aplicativo</label><input type="text" name="codigo" inputmode="numeric" maxlength="7" required autocomplete="one-time-code"></div>

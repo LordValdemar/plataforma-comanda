@@ -25,7 +25,7 @@
               <td>{{ f.vencimento[8:10] }}/{{ f.vencimento[5:7] }}/{{ f.vencimento[:4] }}</td>
               <td class="numero">{{ f.valor_centavos|reais }}</td>
               <td><span class="selo {{ cor }}">{{ rotulo }}</span></td>
-              <td style="text-align:right">
+              <td class="u-dir">
                 {% if f.link and f.status in EM_ABERTO %}
                   <a class="botao" href="{{ f.link }}" target="_blank" rel="noopener noreferrer">Pagar</a>
                 {% elif f.link %}

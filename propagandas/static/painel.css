@@ -147,3 +147,24 @@ button.pequeno { padding: 4px 10px; }
   .painel-lote-corpo { left: 8px; right: 8px; width: auto; }
 }
 .escolher-letreiro input[type=text] { margin-top: 2px; }
+/* Ajustes pontuais (no lugar de style="..." no HTML: a CSP não aceita estilo embutido).
+   !important faz o papel do estilo embutido; a regra do celular para .linha continua valendo. */
+.u-mt0 { margin-top: 0 !important; }
+.u-mt6 { margin: 6px 0 0 !important; }
+.u-mt8 { margin-top: 8px !important; }
+.u-mt10 { margin-top: 10px !important; }
+.u-mt12 { margin-top: 12px !important; }
+.u-mb0 { margin-bottom: 0 !important; }
+.u-m0 { margin: 0 !important; }
+.u-f2 { flex: 2 !important; }
+.u-f3 { flex: 3 !important; }
+.u-b70 { flex-basis: 70px !important; }
+.u-b90 { flex-basis: 90px !important; }
+.u-b200 { flex-basis: 200px !important; }
+.u-b220 { flex-basis: 220px !important; }
+.u-b100 { flex-basis: 100% !important; }
+.u-dir { text-align: right !important; }
+.u-max120 { max-width: 120px !important; }
+.u-inline { display: inline !important; }
+.u-junto { border-top: 0 !important; padding-top: 0 !important; }
+.u-entre { align-items: center !important; justify-content: space-between !important; }

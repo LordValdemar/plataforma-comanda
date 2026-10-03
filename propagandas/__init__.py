@@ -171,7 +171,7 @@ def create_app(sobrescrever=None):
         resposta.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; img-src 'self' data:; media-src 'self'; "
-            "style-src 'self' 'unsafe-inline'; script-src 'self'; "
+            "style-src 'self'; script-src 'self'; frame-src 'none'; object-src 'none'; "
             "frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
         )
         return resposta
