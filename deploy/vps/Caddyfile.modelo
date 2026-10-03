@@ -5,6 +5,21 @@
 	email __EMAIL__
 }
 
+# Cabeçalhos de segurança, usados no endereço principal e no www.
+(seguranca) {
+	header {
+		# O navegador passa a usar só HTTPS neste domínio.
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+		# O painel já manda estes cabeçalhos. O "?" só os coloca quando a resposta
+		# não tem (respostas do próprio Caddy, como o aviso de "servidor reiniciando").
+		?X-Content-Type-Options "nosniff"
+		?X-Frame-Options "DENY"
+		?Referrer-Policy "same-origin"
+		?Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+	}
+}
+
 __DOMINIO__ {
 	encode gzip
 
@@ -13,11 +28,7 @@ __DOMINIO__ {
 		max_size 500MB
 	}
 
-	header {
-		# O navegador passa a usar só HTTPS neste domínio.
-		Strict-Transport-Security "max-age=31536000"
-		-Server
-	}
+	import seguranca
 
 	reverse_proxy 127.0.0.1:5000
 

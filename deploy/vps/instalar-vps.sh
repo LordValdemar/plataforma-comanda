@@ -173,7 +173,7 @@ fi
 # www.dominio leva para o endereço principal, se o DNS do www já existir (senão o Caddy
 # ficaria tentando, sem sucesso, tirar o certificado de um nome que não aponta para cá).
 if [ "$MODO_TESTE" -eq 0 ] && [[ "$DOMINIO" != www.* ]] && getent ahostsv4 "www.$DOMINIO" >/dev/null; then
-  printf '\n# Gerado por deploy/vps/instalar-vps.sh: www leva para o endereço principal.\nwww.%s {\n\tredir https://%s{uri} permanent\n}\n' \
+  printf '\n# Gerado por deploy/vps/instalar-vps.sh: www leva para o endereço principal.\nwww.%s {\n\timport seguranca\n\tredir https://%s{uri} permanent\n}\n' \
     "$DOMINIO" "$DOMINIO" >> /etc/caddy/Caddyfile
   echo "OK: www.$DOMINIO vai levar para https://$DOMINIO"
 elif [ "$MODO_TESTE" -eq 0 ] && [[ "$DOMINIO" != www.* ]]; then
