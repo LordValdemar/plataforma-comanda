@@ -88,4 +88,6 @@ def test_cabecalhos_e_cookie_de_sessao(cliente):
     resposta = cliente.get("/")
     assert "script-src 'self'" in resposta.headers["Content-Security-Policy"]
     assert resposta.headers["X-Frame-Options"] == "DENY"
+    permissoes = resposta.headers["Permissions-Policy"]
+    assert "camera=()" in permissoes and "screen-wake-lock=(self)" in permissoes
     assert resposta.headers["Cache-Control"] == "no-store"

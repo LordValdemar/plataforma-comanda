@@ -162,6 +162,12 @@ def create_app(sobrescrever=None):
         resposta.headers.setdefault("X-Content-Type-Options", "nosniff")
         resposta.headers.setdefault("X-Frame-Options", "DENY")
         resposta.headers.setdefault("Referrer-Policy", "same-origin")
+        # Libera só o que o sistema usa: tela cheia e vídeo nas TVs, tela acesa na cozinha.
+        resposta.headers.setdefault(
+            "Permissions-Policy",
+            "fullscreen=(self), autoplay=(self), screen-wake-lock=(self), camera=(), microphone=(), "
+            "geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), browsing-topics=()",
+        )
         resposta.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; img-src 'self' data:; media-src 'self'; "
