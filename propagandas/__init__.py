@@ -15,7 +15,7 @@ from logging.handlers import TimedRotatingFileHandler
 from flask import Flask, flash, g, redirect, request, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from . import agenda, auth, cobranca, comanda, conta, db, empresa, exibicao, legal, painel, plataforma, relatorios, telas
+from . import agenda, auth, cobranca, comanda, conta, db, empresa, exibicao, legal, painel, plataforma, ponto, relatorios, telas
 
 PASTA_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -131,6 +131,8 @@ def create_app(sobrescrever=None):
     app.teardown_appcontext(db.fechar)
 
     auth.registrar(app)
+    app.before_request(ponto.exigir)  # depois do login: sem ponto aberto, só a página do ponto
+    app.register_blueprint(ponto.bp)
     app.register_blueprint(painel.bp)
     app.register_blueprint(exibicao.bp)
     app.register_blueprint(telas.bp)

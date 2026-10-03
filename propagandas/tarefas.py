@@ -5,7 +5,7 @@ import threading
 import time
 from datetime import timedelta
 
-from . import agenda, alertas, asaas, backup, cobranca, db
+from . import agenda, alertas, asaas, backup, cobranca, db, ponto
 
 log = logging.getLogger("propagandas.tarefas")
 
@@ -39,6 +39,10 @@ def iniciar_tarefas(app):
                     alertas.verificar_telas()
                 except Exception:
                     log.exception("Falha ao verificar as telas")
+                try:
+                    ponto.fechar_fora_do_horario()
+                except Exception:
+                    log.exception("Falha ao fechar os pontos fora do horário")
                 if ultima_manutencao is None or time.monotonic() - ultima_manutencao >= INTERVALO_MANUTENCAO:
                     ultima_manutencao = time.monotonic()
                     try:

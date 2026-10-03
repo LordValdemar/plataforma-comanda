@@ -87,6 +87,8 @@ def exportar():
         "destinos": _linhas(conexao, "SELECT d.* FROM propaganda_destinos d JOIN propagandas p ON p.id = d.propaganda_id "
                                      "WHERE p.empresa_id = ?", empresa_id),
         "configuracoes": _linhas(conexao, "SELECT chave, valor FROM configuracoes WHERE empresa_id = ?", empresa_id),
+        "ponto": _linhas(conexao, "SELECT usuario_nome, entrada, saida, motivo_saida FROM ponto_registros "
+                                  "WHERE empresa_id = ? ORDER BY entrada", empresa_id),
     }
 
     exibicoes = io.StringIO()

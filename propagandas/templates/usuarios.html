@@ -60,6 +60,12 @@
           </td>
           <td>{{ u.criado_em[:10] }}</td>
           <td class="acoes-celula">
+            {% if u.id != g.usuario.id and not u.plataforma %}
+              <form action="{{ url_for('ponto.desconectar_pessoa', usuario_id=u.id) }}" method="post" class="u-inline" data-confirmar="Desconectar {{ u.usuario }} de todos os aparelhos agora?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="voltar" value="usuarios">
+                <button class="secundario" title="Encerra a sessão em todos os aparelhos e fecha o ponto">Desconectar</button>
+              </form>
+            {% endif %}
             {% if u.id != g.usuario.id %}
               <form action="{{ url_for('auth.excluir_usuario', usuario_id=u.id) }}" method="post" data-confirmar="Excluir o usuário {{ u.usuario }}?">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

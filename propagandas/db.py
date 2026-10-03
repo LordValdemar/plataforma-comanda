@@ -379,6 +379,29 @@ MIGRACOES = [
     """
     ALTER TABLE propagandas ADD COLUMN letreiro TEXT;
     """,
+    # 9 - controle de ponto: horário de trabalho por usuário e registros de entrada e saída.
+    # O nome do usuário é copiado no registro: o histórico continua se o usuário for excluído.
+    """
+    ALTER TABLE usuarios ADD COLUMN exige_ponto INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE usuarios ADD COLUMN horario_dias TEXT NOT NULL DEFAULT '0123456';
+    ALTER TABLE usuarios ADD COLUMN horario_inicio TEXT;
+    ALTER TABLE usuarios ADD COLUMN horario_fim TEXT;
+
+    CREATE TABLE ponto_registros (
+        id             INTEGER PRIMARY KEY,
+        empresa_id     INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+        usuario_id     INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+        usuario_nome   TEXT    NOT NULL,
+        entrada        TEXT    NOT NULL,
+        saida          TEXT,
+        motivo_saida   TEXT,
+        encerrado_por  INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+        ip             TEXT
+    );
+    -- Cada pessoa tem no máximo um ponto aberto.
+    CREATE UNIQUE INDEX ponto_um_aberto ON ponto_registros(usuario_id) WHERE saida IS NULL;
+    CREATE INDEX ponto_empresa_entrada ON ponto_registros(empresa_id, entrada);
+    """,
 ]
 
 

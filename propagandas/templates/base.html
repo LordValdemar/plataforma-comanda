@@ -25,7 +25,9 @@
     {% elif g.usuario %}
       {% set ep = request.endpoint or '' %}
       {% set papel = g.usuario.papel %}
+      {% set sem_ponto = g.get('ponto_exige') and not g.get('ponto_aberto') %}
       <nav>
+        {% if not sem_ponto %}
         {% if 'painel' in g.modulos %}
           <a href="{{ url_for('painel.lista') }}" {% if ep == 'painel.lista' %}class="atual"{% endif %}>Propagandas</a>
           {% if papel == 'admin' %}
@@ -48,8 +50,13 @@
             <a href="{{ url_for('comanda_cardapio.lista') }}" {% if ep.startswith('comanda_cardapio.') or ep == 'comanda_ajustes.pagina' %}class="atual"{% endif %}>Cardápio</a>
           {% endif %}
         {% endif %}
+        {% endif %}
+        {% if g.get('ponto_exige') %}
+          <a href="{{ url_for('ponto.meu') }}" {% if ep == 'ponto.meu' %}class="atual"{% endif %}>{{ '● Ponto aberto' if g.ponto_aberto else 'Ponto' }}</a>
+        {% endif %}
         {% if papel == 'admin' %}
           <a href="{{ url_for('auth.usuarios') }}" {% if ep == 'auth.usuarios' %}class="atual"{% endif %}>Usuários</a>
+          <a href="{{ url_for('ponto.equipe') }}" {% if ep.startswith('ponto.') %}class="atual"{% endif %}>Ponto</a>
           <a href="{{ url_for('empresa.configuracoes') }}" {% if ep == 'empresa.configuracoes' %}class="atual"{% endif %}>Empresa</a>
           <a href="{{ url_for('conta.inicio') }}" {% if ep.startswith('conta.') %}class="atual"{% endif %}>Minha loja</a>
         {% endif %}

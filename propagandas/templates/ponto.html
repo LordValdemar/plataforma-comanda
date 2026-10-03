@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titulo %}Ponto{% endblock %}
+{% block classe_main %}medio{% endblock %}
+{% block conteudo %}
+<section class="ponto-cartao {{ 'trabalhando' if registro else 'fora' }}">
+  {% if not exige %}
+    <h2>Ponto</h2>
+    <p>Sua loja não exige registro de ponto para o seu usuário.</p>
+    <a class="botao" href="{{ inicio }}">Continuar</a>
+  {% elif registro %}
+    <div class="ponto-relogio">● Trabalhando desde {{ registro.entrada|data_hora('%H:%M') }}</div>
+    <p class="dica">Seu horário: {{ horario }}.</p>
+    <div class="acoes">
+      <a class="botao secundario" href="{{ inicio }}">Voltar ao trabalho</a>
+      <form action="{{ url_for('ponto.saida') }}" method="post" data-confirmar="Registrar a saída agora? Você será desconectado.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="perigo">Registrar saída</button>
+      </form>
+    </div>
+  {% else %}
+    <h2>Olá, {{ g.usuario.usuario }}!</h2>
+    {% if no_horario %}
+      <p>Registre a entrada para começar a usar o sistema.</p>
+      <form action="{{ url_for('ponto.entrada') }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="grande">Registrar entrada</button>
+      </form>
+    {% else %}
+      <div class="aviso erro">Fora do seu horário de trabalho. O sistema fica liberado só no seu horário.</div>
+    {% endif %}
+    <p class="dica">Seu horário: {{ horario }}.</p>
+  {% endif %}
+</section>
+
+{% if registros %}
+<section>
+  <h2>Seus últimos 7 dias</h2>
+  <div class="tabela-rolagem">
+  <table>
+    <thead><tr><th>Entrada</th><th>Saída</th><th class="numero">Tempo</th></tr></thead>
+    <tbody>
+      {% for r in registros %}
+        <tr>
+          <td>{{ r.entrada|data_hora }}</td>
+          <td>{% if r.saida %}{{ r.saida|data_hora('%H:%M') }}{% if r.motivo_saida and r.motivo_saida != 'saída' %} <span class="dica">({{ r.motivo_saida }})</span>{% endif %}{% else %}<span class="selo no-ar">trabalhando</span>{% endif %}</td>
+          <td class="numero">{{ r.segundos|duracao }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
