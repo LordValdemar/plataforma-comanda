@@ -30,7 +30,7 @@
                   <form action="{{ url_for('cobranca.atualizar_plano', plano_id=p.id) }}" method="post" class="linha u-mt8">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div><label>Nome</label><input type="text" name="nome" value="{{ p.nome }}" maxlength="60" required></div>
-                    <div><label>Preço (R$)</label><input type="text" name="preco" value="{{ '%.2f'|format(p.preco_centavos / 100)|replace('.', ',') }}" required inputmode="decimal"></div>
+                    <div><label>Preço (R$)</label><input type="text" name="preco" value="{{ '%.2f'|format(p.preco_centavos / 100)|replace('.', ',') }}" required inputmode="decimal" data-mascara="dinheiro"></div>
                     <div><label>Telas</label><input type="number" name="limite_telas" min="0" value="{{ p.limite_telas if p.limite_telas is not none else '' }}" placeholder="sem limite"></div>
                     <div><label>MB</label><input type="number" name="limite_mb" min="0" value="{{ p.limite_mb if p.limite_mb is not none else '' }}" placeholder="sem limite"></div>
 <div class="fixo"><input type="hidden" name="modulos_enviados" value="1">{% for m, nome_m in MODULOS.items() %}<label><input type="checkbox" name="modulos" value="{{ m }}" {% if m in ler_modulos(p.modulos) %}checked{% endif %}> {{ nome_m }}</label> {% endfor %}</div>
@@ -49,7 +49,7 @@
   <form action="{{ url_for('cobranca.novo_plano') }}" method="post" class="linha u-mt12">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div><label for="plano-nome">Novo plano</label><input type="text" id="plano-nome" name="nome" maxlength="60" required placeholder="Ex.: Básico"></div>
-    <div><label for="plano-preco">Preço/mês (R$)</label><input type="text" id="plano-preco" name="preco" required inputmode="decimal" placeholder="49,90"></div>
+    <div><label for="plano-preco">Preço/mês (R$)</label><input type="text" id="plano-preco" name="preco" required inputmode="decimal" placeholder="49,90" data-mascara="dinheiro"></div>
     <div><label for="plano-telas">Telas</label><input type="number" id="plano-telas" name="limite_telas" min="0" placeholder="sem limite"></div>
     <div><label for="plano-mb">Armazenamento (MB)</label><input type="number" id="plano-mb" name="limite_mb" min="0" placeholder="sem limite"></div>
     <div class="fixo"><input type="hidden" name="modulos_enviados" value="1">{% for m, nome_m in MODULOS.items() %}<label><input type="checkbox" name="modulos" value="{{ m }}" {% if m == 'painel' %}checked{% endif %}> {{ nome_m }}</label> {% endfor %}</div>
@@ -67,9 +67,9 @@
       <div class="u-f2"><label for="razao_social">Razão social <span class="dica">(aparece no sistema e no cupom)</span></label><input type="text" id="razao_social" name="razao_social" maxlength="120"></div>
     </div>
     <div class="linha u-mt8">
-      <div><label for="documento_nova">CPF ou CNPJ</label><input type="text" id="documento_nova" name="documento" maxlength="18" inputmode="numeric"></div>
+      <div><label for="documento_nova">CPF ou CNPJ</label><input type="text" id="documento_nova" name="documento" maxlength="18" inputmode="numeric" data-mascara="documento"></div>
       <div><label for="email_nova">E-mail</label><input type="email" id="email_nova" name="email" maxlength="120"></div>
-      <div><label for="telefone_nova">Telefone</label><input type="text" id="telefone_nova" name="telefone" maxlength="20" inputmode="tel"></div>
+      <div><label for="telefone_nova">Telefone</label><input type="text" id="telefone_nova" name="telefone" maxlength="20" inputmode="tel" data-mascara="telefone"></div>
     </div>
     <div class="linha u-mt8">
       <div><label for="limite_telas">Limite de telas</label><input type="number" id="limite_telas" name="limite_telas" min="0" placeholder="sem limite"></div>
@@ -125,7 +125,7 @@
                         {% endfor %}
                       </select>
                     </div>
-                    <div><label>CPF ou CNPJ</label><input type="text" name="documento" value="{{ e.documento }}" inputmode="numeric" maxlength="18"></div>
+                    <div><label>CPF ou CNPJ</label><input type="text" name="documento" value="{{ e.documento }}" inputmode="numeric" maxlength="18" data-mascara="documento"></div>
                     <div><label>E-mail de cobrança</label><input type="email" name="email_cobranca" value="{{ e.email_cobranca }}" maxlength="200"></div>
                     <div class="fixo"><label title="Suspende sozinho quando uma fatura passa da tolerância e reativa quando é paga"><input type="checkbox" name="cobranca_automatica" {% if e.cobranca_automatica %}checked{% endif %}> Bloquear por atraso</label></div>
                     <div class="fixo"><button type="submit">Salvar</button></div>
