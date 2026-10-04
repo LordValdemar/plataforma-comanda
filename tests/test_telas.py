@@ -1,6 +1,7 @@
 import csv
 import io
 import os
+import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
@@ -103,6 +104,14 @@ def test_codigo_da_tela(logado):
     assert anonimo.get("/api/tela/codigo-inventado/playlist").status_code == 404
     postar(logado, f"/telas/{tela['id']}/novo-codigo", pagina="/telas")
     assert anonimo.get(f"/tela/{tela['codigo']}").status_code == 404
+
+    # O endereço usa o nome da tela (sem acentos) + 6 letras aleatórias.
+    assert re.fullmatch(r"balcao-[a-z2-9]{6}", tela["codigo"])
+    postar(logado, f"/telas/{tela['id']}/atualizar", {"nome": "Promoções da Semana"}, pagina="/telas")
+    postar(logado, f"/telas/{tela['id']}/novo-codigo", pagina="/telas")
+    novo = consultar(logado, "SELECT codigo FROM telas WHERE id = ?", tela["id"])[0][0]
+    assert re.fullmatch(r"promocoes-da-semana-[a-z2-9]{6}", novo)
+    assert anonimo.get(f"/tela/{novo}").status_code == 200
 
 
 def test_pulso_registra_contato_e_exibicoes(logado):

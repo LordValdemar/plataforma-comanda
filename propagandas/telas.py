@@ -1,7 +1,9 @@
 """Cadastro das telas (TVs), grupos e monitoramento (somente administradores)."""
 
 import logging
+import re
 import secrets
+import unicodedata
 
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, url_for
 
@@ -13,9 +15,22 @@ bp.before_request(modulos.exigir("painel"))  # só para lojas com o Painel no pl
 log = logging.getLogger("propagandas.telas")
 
 
-def novo_codigo():
-    # Difícil de adivinhar: quem não tem o código não vê nem registra nada da tela.
-    return secrets.token_urlsafe(9)
+# Sem letras e números que se confundem (0/o, 1/l/i): fácil de digitar no controle da TV.
+LETRAS_DO_CODIGO = "abcdefghjkmnpqrstuvwxyz23456789"
+
+
+def novo_codigo(conexao, nome):
+    """Endereço da tela: o nome dela + 6 letras aleatórias, ex.: "promocoes-k7m2x9".
+
+    O final aleatório impede adivinhar o endereço: quem não tem o código não vê nem registra
+    nada da tela (31^6, cerca de 900 milhões de combinações para cada nome).
+    """
+    base = unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode().lower()
+    base = re.sub(r"[^a-z0-9]+", "-", base).strip("-")[:30].strip("-") or "tela"
+    while True:
+        codigo = f"{base}-{''.join(secrets.choice(LETRAS_DO_CODIGO) for _ in range(6))}"
+        if not conexao.execute("SELECT 1 FROM telas WHERE codigo = ?", (codigo,)).fetchone():
+            return codigo
 
 
 def _ler_grupo(conexao):
@@ -77,7 +92,7 @@ def nova():
     with conexao:
         conexao.execute(
             "INSERT INTO telas (empresa_id, nome, codigo, grupo_id) VALUES (?, ?, ?, ?)",
-            (g.empresa_id, nome, novo_codigo(), _ler_grupo(conexao)),
+            (g.empresa_id, nome, novo_codigo(conexao, nome), _ler_grupo(conexao)),
         )
     log.info("“%s” cadastrou a tela “%s”", g.usuario["usuario"], nome)
     flash(f"Tela “{nome}” cadastrada. Abra o endereço dela na TV.", "ok")
@@ -107,7 +122,8 @@ def trocar_codigo(tela_id):
     conexao = db.obter()
     tela = _buscar(conexao, tela_id)
     with conexao:
-        conexao.execute("UPDATE telas SET codigo = ? WHERE id = ? AND empresa_id = ?", (novo_codigo(), tela_id, g.empresa_id))
+        conexao.execute("UPDATE telas SET codigo = ? WHERE id = ? AND empresa_id = ?",
+                        (novo_codigo(conexao, tela["nome"]), tela_id, g.empresa_id))
     log.info("“%s” gerou novo endereço para a tela “%s”", g.usuario["usuario"], tela["nome"])
     flash(f"Novo endereço gerado para “{tela['nome']}”. O endereço antigo parou de funcionar.", "ok")
     return redirect(url_for("telas.lista"))

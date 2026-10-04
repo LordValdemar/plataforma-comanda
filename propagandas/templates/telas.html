@@ -70,9 +70,9 @@
           <button type="submit">Salvar</button>
         </form>
         <div class="acoes">
-          <form action="{{ url_for('telas.trocar_codigo', tela_id=t.id) }}" method="post" data-confirmar="Gerar um novo endereço? O endereço atual vai parar de funcionar e você terá que atualizar a TV.">
+          <form action="{{ url_for('telas.trocar_codigo', tela_id=t.id) }}" method="post" data-confirmar="Gerar um novo endereço com o nome atual da tela? O endereço atual vai parar de funcionar e você terá que atualizar a TV.">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="secundario">Gerar novo endereço</button>
+            <button class="secundario" title="O endereço novo usa o nome atual da tela, ex.: /tela/vitrine-k7m2x9">Gerar novo endereço</button>
           </form>
           <form action="{{ url_for('telas.excluir', tela_id=t.id) }}" method="post" data-confirmar="Excluir a tela {{ t.nome }}?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
