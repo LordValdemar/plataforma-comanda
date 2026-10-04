@@ -1,9 +1,7 @@
 """Acesso ao banco SQLite e migrações do esquema."""
 
 import os
-import re
 import sqlite3
-import unicodedata
 
 from flask import current_app, g
 
@@ -539,14 +537,9 @@ def gravar_config(empresa_id, chave, valor):
 
 def gerar_slug(conexao, nome, ignorar_id=None):
     """Código da loja a partir do nome: "Padeiro Lanches" → "padeiro-lanches" (único)."""
-    base = unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode().lower()
-    base = re.sub(r"[^a-z0-9]+", "-", base).strip("-")[:40].strip("-") or "loja"
-    candidato, numero = base, 2
-    while conexao.execute(
-        "SELECT 1 FROM empresas WHERE slug = ? AND id IS NOT ?", (candidato, ignorar_id)
-    ).fetchone():
-        candidato, numero = f"{base}-{numero}", numero + 1
-    return candidato
+    from .planos import servico  # evita importação circular
+
+    return servico(conexao).codigo_livre(nome, ignorar_id)
 
 
 def preencher_slugs(caminho_banco):

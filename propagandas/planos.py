@@ -1,25 +1,40 @@
-"""Limites do plano de cada empresa (número de telas e armazenamento)."""
+"""Empresas na porta de entrada: o serviço (src/domain/empresas) e os limites do plano de cada uma."""
 
-MB = 1024 * 1024
+from src.domain.empresas import MB, ServicoDeEmpresas
+from src.infrastructure.sqlite import RepositorioDeEmpresasSQLite
+
+from . import alertas, db
+
+__all__ = ["MB", "cabe_no_armazenamento", "empresa", "pode_cadastrar_tela", "servico", "uso"]
+
+
+def _erro_webhook(url):
+    try:
+        alertas.validar_url_webhook(url)
+    except alertas.EnderecoBloqueado as erro:
+        return str(erro)
+    return None
+
+
+def servico(conexao=None):
+    from .auth import EMPRESA_PRINCIPAL  # evita importação circular
+
+    return ServicoDeEmpresas(RepositorioDeEmpresasSQLite(conexao or db.obter()), EMPRESA_PRINCIPAL,
+                             conferir_webhook=_erro_webhook)
 
 
 def empresa(conexao, empresa_id):
+    """A ficha completa (para as telas)."""
     return conexao.execute("SELECT * FROM empresas WHERE id = ?", (empresa_id,)).fetchone()
 
 
 def uso(conexao, empresa_id):
-    telas = conexao.execute("SELECT COUNT(*) FROM telas WHERE empresa_id = ?", (empresa_id,)).fetchone()[0]
-    bytes_usados = conexao.execute(
-        "SELECT COALESCE(SUM(tamanho), 0) FROM propagandas WHERE empresa_id = ?", (empresa_id,)
-    ).fetchone()[0]
-    return {"telas": telas, "bytes": bytes_usados, "mb": bytes_usados / MB}
+    return servico(conexao).uso(empresa_id)
 
 
 def pode_cadastrar_tela(conexao, empresa_id):
-    limite = empresa(conexao, empresa_id)["limite_telas"]
-    return limite is None or uso(conexao, empresa_id)["telas"] < limite
+    return servico(conexao).cabe_mais_uma_tela(empresa_id)
 
 
 def cabe_no_armazenamento(conexao, empresa_id, bytes_novos):
-    limite = empresa(conexao, empresa_id)["limite_mb"]
-    return limite is None or uso(conexao, empresa_id)["bytes"] + bytes_novos <= limite * MB
+    return servico(conexao).cabe_no_armazenamento(empresa_id, bytes_novos)

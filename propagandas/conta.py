@@ -10,27 +10,26 @@ Fluxo do cliente:
 """
 
 import logging
-import re
 
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, url_for
 
 from src.domain.cobranca import ErroDeCobranca, ErroNoGateway
+from src.domain.empresas import CadastroInvalido, NovaLoja
+from src.domain.empresas.modulos import em_ordem
 
 from . import asaas, cobranca, db, modulos
+from . import planos as empresas
 from .auth import EMPRESA_PRINCIPAL, ErroUsuario, _buscar_usuario, _entrar, criar_usuario, existe_usuario, login_obrigatorio
 
 bp = Blueprint("conta", __name__)
 log = logging.getLogger("propagandas.conta")
-
-SLUG_VALIDO = re.compile(r"^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$")
-SLUGS_RESERVADOS = {"admin", "api", "plataforma", "login", "entrar", "cadastro", "conta", "planos", "static", "suporte"}
 
 
 def planos_a_venda(conexao):
     linhas = conexao.execute(
         "SELECT * FROM planos WHERE ativo = 1 AND preco_centavos > 0 ORDER BY preco_centavos, nome"
     ).fetchall()
-    return [dict(linha, lista_modulos=[m for m in modulos.MODULOS if m in modulos.ler(linha["modulos"])]) for linha in linhas]
+    return [dict(linha, lista_modulos=em_ordem(linha["modulos"])) for linha in linhas]
 
 
 def _empresa():
@@ -65,42 +64,24 @@ def cadastro():
     plano_id = request.values.get("plano", "")
     dados = {campo: request.form.get(campo, "").strip() for campo in ("loja", "codigo", "usuario", "email")}
     if request.method == "POST":
-        erro = None
-        nome = dados["loja"][:100]
-        codigo = dados["codigo"].lower()
-        if not nome:
-            erro = "Informe o nome da loja."
-        elif codigo and (not SLUG_VALIDO.match(codigo) or codigo in SLUGS_RESERVADOS):
-            erro = "O código da loja usa só letras minúsculas, números e hífen (de 3 a 40), ex.: padeiro-lanches."
-        elif codigo and conexao.execute("SELECT 1 FROM empresas WHERE slug = ?", (codigo,)).fetchone():
-            erro = f"O código “{codigo}” já é de outra loja. Escolha outro."
-        elif "@" not in dados["email"] or len(dados["email"]) > 200:
-            erro = "Informe um e-mail válido (é para onde vão as faturas e avisos)."
-        elif request.form.get("senha", "") != request.form.get("confirmacao", ""):
-            erro = "As senhas não conferem."
-        elif request.form.get("termos") != "on":
-            erro = "Para criar a conta, aceite os Termos de Uso e a Política de Privacidade."
-        if erro is None:
-            with conexao:
-                empresa_id = conexao.execute(
-                    "INSERT INTO empresas (nome, slug, email_cobranca) VALUES (?, ?, ?)",
-                    (nome, codigo or db.gerar_slug(conexao, nome), dados["email"]),
-                ).lastrowid
-            try:
-                usuario_id = criar_usuario(conexao, empresa_id, dados["usuario"], request.form.get("senha", ""), "admin")
-            except ErroUsuario as erro_usuario:
-                with conexao:
-                    conexao.execute("DELETE FROM empresas WHERE id = ?", (empresa_id,))
-                erro = str(erro_usuario)
-            else:
-                _entrar(_buscar_usuario(conexao, usuario_id))
-                log.info("Nova loja cadastrada: “%s” (id %s, IP %s)", nome, empresa_id, request.remote_addr)
-                cobranca._avisar_plataforma(f"🆕 Nova loja cadastrada: “{nome}”.")
-                flash("Conta criada! Agora escolha o plano da sua loja.", "ok")
-                if plano_id.isdigit():
-                    return redirect(url_for("conta.assinar", plano_id=int(plano_id)))
-                return redirect(url_for("conta.inicio"))
-        flash(erro, "erro")
+        loja = NovaLoja(nome=dados["loja"], codigo=dados["codigo"], email=dados["email"],
+                        senhas_conferem=request.form.get("senha", "") == request.form.get("confirmacao", ""),
+                        aceitou_termos=request.form.get("termos") == "on")
+        try:
+            empresa_id, usuario_id = empresas.servico(conexao).abrir_loja(
+                loja, lambda empresa_id: criar_usuario(conexao, empresa_id, dados["usuario"], request.form.get("senha", ""),
+                                                       "admin"))
+        except (CadastroInvalido, ErroUsuario) as erro:
+            flash(str(erro), "erro")
+        else:
+            _entrar(_buscar_usuario(conexao, usuario_id))
+            nome = loja.nome.strip()[:100]
+            log.info("Nova loja cadastrada: “%s” (id %s, IP %s)", nome, empresa_id, request.remote_addr)
+            cobranca._avisar_plataforma(f"🆕 Nova loja cadastrada: “{nome}”.")
+            flash("Conta criada! Agora escolha o plano da sua loja.", "ok")
+            if plano_id.isdigit():
+                return redirect(url_for("conta.assinar", plano_id=int(plano_id)))
+            return redirect(url_for("conta.inicio"))
     return render_template("cadastro.html", dados=dados, plano_id=plano_id), (400 if request.method == "POST" else 200)
 
 
@@ -172,7 +153,7 @@ def assinar(plano_id):
         return redirect(url_for("conta.inicio"))
 
     return render_template("assinar.html", plano=plano, empresa=empresa, dias=dias,
-                           lista_modulos=[m for m in modulos.MODULOS if m in modulos.ler(plano["modulos"])],
+                           lista_modulos=em_ordem(plano["modulos"]),
                            MODULOS=modulos.MODULOS, troca=bool(empresa["asaas_assinatura_id"]))
 
 

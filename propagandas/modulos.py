@@ -2,54 +2,31 @@
 
 Cada empresa usa os módulos do plano que assinou, mais os que a plataforma liberou à mão
 (``empresas.modulos_liberados``). A empresa principal (de quem opera a plataforma) usa todos.
-Dentro da empresa, o papel do usuário decide a que módulo ele tem acesso.
+Dentro da empresa, o papel do usuário decide a que módulo ele tem acesso. As regras ficam em
+src/domain/empresas/modulos.py e src/domain/permissoes; aqui ficam o before_request e a página inicial.
 """
 
 from flask import abort, g, redirect, render_template, request, url_for
 
+from src.domain.empresas.modulos import DESCRICOES, MODULOS, juntar, ler
 from src.domain.permissoes import PAPEIS_DO_MODULO, modulos_da_pessoa  # noqa: F401 (papéis de cada módulo)
 
 from . import db
 
-MODULOS = {
-    "painel": "Painel de Propagandas",
-    "comanda": "Comanda",
-}
-DESCRICOES = {
-    "painel": "Propagandas nas TVs da loja, com agendamento e relatórios de exibição.",
-    "comanda": "Pedidos pelo celular dos garçons, tela da cozinha, fechamento de conta e relatórios de vendas.",
-}
-
-
-def ler(texto):
-    """'painel,comanda' → {'painel', 'comanda'} (ignora nomes desconhecidos)."""
-    return {m.strip() for m in (texto or "").split(",") if m.strip() in MODULOS}
-
-
-def juntar(modulos):
-    return ",".join(m for m in MODULOS if m in modulos)
+__all__ = ["DESCRICOES", "MODULOS", "juntar", "ler"]
 
 
 def do_formulario(form, padrao="painel"):
     """Caixas "modulos" de um formulário. Sem o campo-marca (formulário antigo), vale o padrão."""
     if form.get("modulos_enviados") != "1":
         return padrao
-    return juntar(set(form.getlist("modulos")))
+    return juntar(form.getlist("modulos"))
 
 
 def da_empresa(conexao, empresa_id):
-    from .auth import EMPRESA_PRINCIPAL  # evita importação circular
+    from . import planos  # evita importação circular
 
-    if empresa_id == EMPRESA_PRINCIPAL:
-        return set(MODULOS)
-    linha = conexao.execute(
-        "SELECT e.modulos_liberados, p.modulos AS do_plano FROM empresas e "
-        "LEFT JOIN planos p ON p.id = e.plano_id WHERE e.id = ?",
-        (empresa_id,),
-    ).fetchone()
-    if linha is None:
-        return set()
-    return ler(linha["modulos_liberados"]) | ler(linha["do_plano"])
+    return planos.servico(conexao).modulos(empresa_id)
 
 
 def do_usuario(usuario, modulos_empresa):

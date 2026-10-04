@@ -1,19 +1,22 @@
-"""Configurações da empresa, uso do plano e exportação dos dados (portabilidade, LGPD)."""
+"""Configurações da empresa, uso do plano e exportação dos dados (portabilidade, LGPD).
+
+As regras do cadastro ficam em src/domain/empresas; aqui ficam as rotas e o pacote de exportação.
+"""
 
 import csv
 import io
 import json
 import logging
 import os
-import sqlite3
 import tempfile
 import zipfile
 
 from flask import Blueprint, current_app, flash, g, redirect, render_template, request, send_file, url_for
 
-from . import agenda, alertas, cadastro, db, planos
+from src.domain.empresas import LOGO_MAX_BYTES, UFS, CadastroInvalido, Configuracoes, documento_formatado
+
+from . import agenda, alertas, db, planos
 from .auth import login_obrigatorio
-from .conta import SLUG_VALIDO, SLUGS_RESERVADOS
 
 bp = Blueprint("empresa", __name__)
 log = logging.getLogger("propagandas.empresa")
@@ -23,51 +26,28 @@ log = logging.getLogger("propagandas.empresa")
 @login_obrigatorio("admin")
 def configuracoes():
     conexao = db.obter()
+    empresas = planos.servico(conexao)
     if request.method == "POST" and request.form.get("acao") == "remover_logo":
-        with conexao:
-            conexao.execute("UPDATE empresas SET logo = '' WHERE id = ?", (g.empresa_id,))
+        empresas.remover_logo(g.empresa_id)
         flash("Logo removido.", "ok")
         return redirect(url_for("empresa.configuracoes"))
     if request.method == "POST":
-        nome = request.form.get("nome", "").strip()[:100]
+        arquivo = request.files.get("logo")
+        codigo_atual = g.usuario["empresa_slug"] or ""
+        configuracoes = Configuracoes(
+            nome=request.form.get("nome", ""),
+            codigo=request.form.get("codigo", codigo_atual),   # sem o campo no formulário, o código continua o mesmo
+            alerta_emails=request.form.get("alerta_emails", ""), alerta_webhook=request.form.get("alerta_webhook", ""),
+            cadastro=request.form, logo=arquivo.read(LOGO_MAX_BYTES + 1) if arquivo and arquivo.filename else None,
+        )
         try:
-            dados = cadastro.ler_formulario(request.form)
-            arquivo = request.files.get("logo")
-            if arquivo and arquivo.filename:
-                dados["logo"] = cadastro.ler_logo(arquivo)
-            erro_cadastro = None
-        except cadastro.CadastroInvalido as erro:
-            dados, erro_cadastro = {}, str(erro)
-        # Sem o campo no formulário, o código continua o mesmo.
-        codigo = request.form.get("codigo", g.usuario["empresa_slug"] or "").strip().lower()
-        emails = [e.strip() for e in request.form.get("alerta_emails", "").split(",") if e.strip()]
-        webhook = request.form.get("alerta_webhook", "").strip()[:500]
-        if not nome:
-            flash("Informe o nome da empresa.", "erro")
-        elif erro_cadastro:
-            flash(erro_cadastro, "erro")
-        elif not SLUG_VALIDO.match(codigo) or codigo in SLUGS_RESERVADOS:
-            flash("O código da loja usa só letras minúsculas, números e hífen (de 3 a 40), ex.: padeiro-lanches.", "erro")
-        elif conexao.execute("SELECT 1 FROM empresas WHERE slug = ? AND id != ?", (codigo, g.empresa_id)).fetchone():
-            flash(f"O código “{codigo}” já é de outra loja. Escolha outro.", "erro")
-        elif any("@" not in e or " " in e for e in emails):
-            flash("Confira os e-mails de alerta (separe por vírgula).", "erro")
-        elif webhook and (erro_webhook := _erro_webhook(webhook)):
-            flash(f"Webhook recusado: {erro_webhook}.", "erro")
+            empresas.salvar_configuracoes(g.empresa_id, configuracoes)
+        except CadastroInvalido as erro:
+            flash(str(erro), "erro")
         else:
-            try:
-                with conexao:
-                    conexao.execute(
-                        "UPDATE empresas SET nome = ?, slug = ?, alerta_emails = ?, alerta_webhook = ? WHERE id = ?",
-                        (nome, codigo, ", ".join(emails), webhook, g.empresa_id),
-                    )
-                    for coluna, valor in dados.items():  # colunas fixas (cadastro.CAMPOS, documento e logo)
-                        conexao.execute(f"UPDATE empresas SET {coluna} = ? WHERE id = ?", (valor, g.empresa_id))
-            except sqlite3.IntegrityError:  # outra loja pegou o mesmo código ao mesmo tempo
-                flash(f"O código “{codigo}” já é de outra loja. Escolha outro.", "erro")
-                return redirect(url_for("empresa.configuracoes"))
-            if codigo != g.usuario["empresa_slug"]:
-                log.info("“%s” trocou o código da loja de “%s” para “%s”", g.usuario["usuario"], g.usuario["empresa_slug"], codigo)
+            codigo = configuracoes.codigo.strip().lower()
+            if codigo != codigo_atual:
+                log.info("“%s” trocou o código da loja de “%s” para “%s”", g.usuario["usuario"], codigo_atual, codigo)
                 flash(f"Código da loja trocado. O endereço de entrada da equipe agora é "
                       f"{url_for('auth.entrar_na_loja', slug=codigo, _external=True)}", "ok")
             log.info("“%s” alterou as configurações da empresa %s", g.usuario["usuario"], g.empresa_id)
@@ -78,22 +58,14 @@ def configuracoes():
     return render_template(
         "empresa.html",
         empresa=empresa,
-        UFS=cadastro.UFS,
-        documento=cadastro.documento_formatado(empresa["documento"]),
-        uso=planos.uso(conexao, g.empresa_id),
+        UFS=UFS,
+        documento=documento_formatado(empresa["documento"]),
+        uso=empresas.uso(g.empresa_id),
         smtp_configurado=bool(current_app.config["SMTP_HOST"]),
         canais=alertas.canais_da_empresa(empresa, current_app.config),
         plano=conexao.execute("SELECT * FROM planos WHERE id = ?", (empresa["plano_id"],)).fetchone(),
         tem_faturas=conexao.execute("SELECT 1 FROM faturas WHERE empresa_id = ?", (g.empresa_id,)).fetchone() is not None,
     )
-
-
-def _erro_webhook(url):
-    try:
-        alertas.validar_url_webhook(url)
-    except alertas.EnderecoBloqueado as erro:
-        return str(erro)
-    return None
 
 
 def _linhas(conexao, sql, *parametros):

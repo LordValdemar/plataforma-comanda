@@ -37,6 +37,7 @@ Regras:
 | 5b. Login e usuários | feita |
 | 6a. Cardápio da Comanda | feita |
 | 6b. Relatórios (vendas da Comanda e exibições do Painel) | feita |
+| 6c. Empresas: módulos, cadastro, limites do plano e abertura de loja | feita |
 
 ## Comanda
 
@@ -119,6 +120,21 @@ TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a pont
 
 Testes: `tests/unidade/test_relatorios_dominio.py` e `tests/test_relatorios_repositorio.py` (comanda antiga sem taxa
 gravada, isolamento entre lojas, o dia local com fuso).
+
+## Empresas
+
+- `src/domain/empresas/modulos.py`: os módulos (Painel e Comanda) e quais a empresa usa (plano + liberados à mão;
+  a principal usa todos).
+- `src/domain/empresas/cadastro.py`: código da loja (formato, reservados, gerado do nome), CPF/CNPJ, telefone, CEP,
+  UF, logo (PNG/JPG até 300 KB) e e-mails de alerta.
+- `src/domain/empresas/limites.py`: telas e armazenamento do plano.
+- `src/domain/empresas/servico.py`: salvar as configurações da loja e abrir uma loja pelo cadastro aberto (se o
+  administrador for recusado, a empresa é desfeita). O webhook é conferido por quem chama (a porta de entrada
+  resolve o endereço e recusa os internos).
+- `src/infrastructure/sqlite/empresas.py`: a tabela empresas; código disputado por duas lojas vira erro da regra.
+- `propagandas/planos.py` (o serviço e os limites), `modulos.py`, `cadastro.py`, `empresa.py` e `conta.py`: a porta de entrada.
+
+Testes: `tests/unidade/test_empresas_dominio.py` e `tests/test_empresas_repositorio.py`.
 
 ## Cobrança e Asaas
 
