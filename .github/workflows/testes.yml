@@ -20,8 +20,10 @@ jobs:
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - name: Verificação de estilo e erros (ruff)
         run: ruff check .
-      - name: Testes automáticos
-        run: python -m pytest -q
+      - name: Verificação de tipos (mypy, código em src/)
+        run: mypy
+      - name: Testes automáticos (com cobertura mínima de 85%)
+        run: python -m pytest -q --cov=propagandas --cov=src --cov-report=term --cov-fail-under=85
 
   docker:
     runs-on: ubuntu-latest

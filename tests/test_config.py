@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from propagandas import arquivo_config
+from src.config import arquivo as arquivo_config
 
 
 def escrever(tmp_path, texto, bom=False):

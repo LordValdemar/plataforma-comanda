@@ -15,10 +15,11 @@ import argparse
 import getpass
 import sys
 
-from propagandas import arquivo_config, create_app, db
+from propagandas import create_app, db
 from propagandas.auth import EMPRESA_PRINCIPAL, PAPEIS, ErroUsuario, criar_usuario, desativar_2fa, trocar_senha
 from propagandas.backup import criar_backup, restaurar_backup
 from propagandas.planos import MB
+from src.config import arquivo as arquivo_config
 
 
 def pedir_senha():

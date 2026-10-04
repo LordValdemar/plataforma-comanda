@@ -17,8 +17,9 @@ import socket
 
 from waitress import serve
 
-from propagandas import arquivo_config, create_app
+from propagandas import create_app
 from propagandas.tarefas import iniciar_tarefas
+from src.config import arquivo as arquivo_config
 
 
 def ip_na_rede_local():

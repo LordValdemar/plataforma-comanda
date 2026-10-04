@@ -6,20 +6,20 @@ sobre o arquivo.
 
 import os
 
-PASTA_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PASTA_PROJETO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ARQUIVO_PADRAO = os.path.join(PASTA_PROJETO, "configuracao.env")
 
 
-def _valor(texto):
+def _valor(texto: str) -> str:
     texto = texto.strip()
     if len(texto) >= 2 and texto[0] == texto[-1] and texto[0] in "'\"":
         return texto[1:-1]  # aspas simples ou duplas em volta (ex.: valores com espaço ou "$")
     return texto.split(" #", 1)[0].strip()  # comentário no fim da linha
 
 
-def ler(caminho):
+def ler(caminho: str) -> dict[str, str]:
     """Retorna {CHAVE: valor} do arquivo. Linhas vazias e começadas com # são ignoradas."""
-    valores = {}
+    valores: dict[str, str] = {}
     with open(caminho, encoding="utf-8-sig") as arquivo:  # -sig: aceita arquivo salvo pelo Bloco de Notas
         for numero, linha in enumerate(arquivo, start=1):
             linha = linha.strip()
@@ -35,7 +35,7 @@ def ler(caminho):
     return valores
 
 
-def carregar(caminho=None):
+def carregar(caminho: str | None = None) -> str | None:
     """Aplica o arquivo nas variáveis de ambiente (sem sobrescrever as já definidas)."""
     caminho = caminho or os.environ.get("ARQUIVO_CONFIG") or ARQUIVO_PADRAO
     if not os.path.exists(caminho):

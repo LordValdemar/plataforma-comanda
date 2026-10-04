@@ -7,3 +7,6 @@ dados/
 
 # Configuração local com segredos (veja configuracao.env.exemplo)
 configuracao.env
+.coverage
+htmlcov/
+.mypy_cache/
