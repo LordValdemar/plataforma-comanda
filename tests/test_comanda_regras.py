@@ -413,3 +413,45 @@ def test_garcom_que_muda_de_papel_perde_o_fechar_conta(logado, app):
     with app.app_context():
         linha = db.obter().execute("SELECT papel, fecha_conta FROM usuarios WHERE id = ?", (maria,)).fetchone()
     assert (linha["papel"], linha["fecha_conta"]) == ("garcom", 0)
+
+
+def test_garcom_que_atende_aparece_na_comanda(logado, app):
+    lanche, _ = preparar(logado)
+    criar_pessoa(app, "maria", "garcom")
+    criar_pessoa(app, "joao", "garcom")
+    with app.app_context():
+        ids = {u["usuario"]: u["id"] for u in db.obter().execute("SELECT id, usuario FROM usuarios").fetchall()}
+
+    # O garçom que abre atende.
+    maria = app.test_client()
+    entrar(maria, "maria")
+    comanda_maria = abrir_comanda(maria, 1)
+    assert "Garçom: <b>maria</b>" in maria.get(f"/comanda/{comanda_maria}").get_data(as_text=True)
+    assert "maria" in maria.get("/comanda/").get_data(as_text=True)
+
+    # O caixa (aqui, o administrador) escolhe o garçom ao abrir, ou depois.
+    resposta = postar_c(logado, "/comanda/", {"numero": "2", "garcom_id": str(ids["joao"])})
+    comanda_joao = int(resposta.headers["Location"].rstrip("/").split("/")[-1])
+    sem_garcom = abrir_comanda(logado, 3)
+    postar_c(logado, f"/comanda/{sem_garcom}/dados", {"mesa": "4", "garcom_id": str(ids["maria"])})
+    assert "Garçom: <b>maria</b>" in logado.get(f"/comanda/{sem_garcom}").get_data(as_text=True)
+    assert postar_c(logado, f"/comanda/{sem_garcom}/dados", {"garcom_id": str(ids["admin"])}).status_code == 302
+    with app.app_context():
+        linha = db.obter().execute("SELECT garcom_id FROM cmd_comandas WHERE id = ?", (sem_garcom,)).fetchone()
+        assert linha[0] == ids["maria"]  # só garçom da loja entra na lista
+        assert db.obter().execute("SELECT detalhe FROM cmd_auditoria WHERE acao = 'garçom'").fetchone()[0] == "ninguém → maria"
+
+    # Comanda sem garçom: quem lança o primeiro pedido passa a atender.
+    quarta = abrir_comanda(logado, 5)
+    joao = app.test_client()
+    entrar(joao, "joao")
+    postar_c(joao, f"/comanda/{quarta}/itens", {f"qtd_{lanche}": "1"})
+    assert "Garçom: <b>joao</b>" in joao.get(f"/comanda/{quarta}").get_data(as_text=True)
+
+    # Cupom, contas fechadas e exportação mostram quem atendeu.
+    postar_c(logado, f"/comanda/{comanda_joao}/itens", {f"qtd_{lanche}": "1"})
+    postar_c(logado, f"/comanda/{comanda_joao}/fechar", {"acao": "pagar", "forma": "pix", "valor": "22"})
+    postar_c(logado, f"/comanda/{comanda_joao}/fechar", {"acao": "finalizar"})
+    assert "Atendido por joao" in logado.get(f"/comanda/{comanda_joao}/cupom").get_data(as_text=True)
+    assert "<td>joao</td>" in logado.get("/comanda/historico").get_data(as_text=True)
+    assert ";joao;" in logado.get("/comanda/relatorios/comandas.csv").get_data(as_text=True)

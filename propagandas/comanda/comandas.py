@@ -72,7 +72,7 @@ def totais(conexao, comanda):
     }
 
 
-def abrir(conexao, empresa_id, numero, mesa="", cliente="", usuario_id=None):
+def abrir(conexao, empresa_id, numero, mesa="", cliente="", usuario_id=None, garcom_id=None):
     try:
         numero = int(str(numero).strip())
     except ValueError:
@@ -82,9 +82,10 @@ def abrir(conexao, empresa_id, numero, mesa="", cliente="", usuario_id=None):
     try:
         with conexao:
             cursor = conexao.execute(
-                "INSERT INTO cmd_comandas (empresa_id, numero, mesa, cliente, taxa_percentual, aberta_por) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (empresa_id, numero, mesa.strip()[:20] or None, cliente.strip()[:60] or None, taxa_padrao(), usuario_id),
+                "INSERT INTO cmd_comandas (empresa_id, numero, mesa, cliente, taxa_percentual, aberta_por, garcom_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (empresa_id, numero, mesa.strip()[:20] or None, cliente.strip()[:60] or None, taxa_padrao(), usuario_id,
+                 garcom_id),
             )
     except sqlite3.IntegrityError:
         raise ErroComanda(f"A comanda {numero} já está aberta.") from None
@@ -201,7 +202,9 @@ def fechar(conexao, comanda, usuario_id=None):
 def buscar(conexao, comanda_id):
     # Só comandas da própria loja: o id de outra loja dá 404.
     comanda = conexao.execute(
-        "SELECT * FROM cmd_comandas WHERE id = ? AND empresa_id = ?", (comanda_id, g.empresa_id)
+        "SELECT c.*, u.usuario AS garcom_nome FROM cmd_comandas c LEFT JOIN usuarios u ON u.id = c.garcom_id "
+        "WHERE c.id = ? AND c.empresa_id = ?",
+        (comanda_id, g.empresa_id),
     ).fetchone()
     if comanda is None:
         abort(404)
@@ -243,6 +246,7 @@ def lista():
                  WHERE comanda_id = c.id AND status != 'cancelado') AS consumo,
                (SELECT COUNT(*) FROM cmd_itens WHERE comanda_id = c.id AND status = 'pronto') AS prontos,
                (SELECT COUNT(*) FROM cmd_itens WHERE comanda_id = c.id AND status IN ('pendente', 'preparando')) AS na_cozinha
+               , (SELECT usuario FROM usuarios WHERE id = c.garcom_id) AS garcom_nome
         FROM cmd_comandas c WHERE c.empresa_id = ? AND status = 'aberta' ORDER BY numero
         """,
         (g.empresa_id,),
@@ -252,7 +256,26 @@ def lista():
         "WHERE i.empresa_id = ? AND i.status = 'pronto' AND c.status != 'cancelada' ORDER BY i.atualizado_em",
         (g.empresa_id,),
     ).fetchall()
-    return render_template("comanda/comandas.html", abertas=abertas, prontos=prontos, numero_buscado=numero)
+    return render_template("comanda/comandas.html", abertas=abertas, prontos=prontos, numero_buscado=numero,
+                           garcons=garcons_da_loja(conexao))
+
+
+def garcons_da_loja(conexao):
+    return conexao.execute(
+        "SELECT id, usuario FROM usuarios WHERE empresa_id = ? AND papel = 'garcom' ORDER BY usuario", (g.empresa_id,)
+    ).fetchall()
+
+
+def _garcom_escolhido(conexao, padrao=None):
+    """Garçom que atende: quem é garçom atende as comandas que abre; os outros escolhem na lista."""
+    if g.usuario["papel"] == "garcom" and "garcom_id" not in request.form:
+        return g.usuario["id"]
+    escolhido = request.form.get("garcom_id", "")
+    if not escolhido:
+        return None if "garcom_id" in request.form else padrao
+    if not escolhido.isdigit() or not any(str(p["id"]) == escolhido for p in garcons_da_loja(conexao)):
+        raise ErroComanda("Escolha um garçom da lista.")
+    return int(escolhido)
 
 
 @bp.route("/", methods=["POST"])
@@ -261,7 +284,8 @@ def nova():
     conexao = db.obter()
     numero = request.form.get("numero", "")
     try:
-        comanda_id = abrir(conexao, g.empresa_id, numero, request.form.get("mesa", ""), request.form.get("cliente", ""), g.usuario["id"])
+        comanda_id = abrir(conexao, g.empresa_id, numero, request.form.get("mesa", ""), request.form.get("cliente", ""),
+                           g.usuario["id"], _garcom_escolhido(conexao))
     except ErroComanda as erro:
         aberta = conexao.execute(
             "SELECT id FROM cmd_comandas WHERE empresa_id = ? AND numero = ? AND status = 'aberta'",
@@ -284,6 +308,7 @@ def detalhe(comanda_id):
         grupos=agrupar(produtos_ativos(conexao)),
         contas=totais(conexao, comanda),
         status_item=STATUS_ITEM,
+        garcons=garcons_da_loja(conexao),
     )
 
 
@@ -297,8 +322,17 @@ def alterar_dados(comanda_id):
     else:
         mesa = request.form.get("mesa", "").strip()[:20] or None
         cliente = request.form.get("cliente", "").strip()[:60] or None
+        try:
+            garcom_id = _garcom_escolhido(conexao, comanda["garcom_id"])
+        except ErroComanda as erro:
+            flash(str(erro), "erro")
+            return _voltar(comanda_id)
         with conexao:
-            conexao.execute("UPDATE cmd_comandas SET mesa = ?, cliente = ? WHERE id = ?", (mesa, cliente, comanda_id))
+            conexao.execute("UPDATE cmd_comandas SET mesa = ?, cliente = ?, garcom_id = ? WHERE id = ?",
+                            (mesa, cliente, garcom_id, comanda_id))
+            if garcom_id != comanda["garcom_id"]:
+                novo = next((p["usuario"] for p in garcons_da_loja(conexao) if p["id"] == garcom_id), "ninguém")
+                auditar(conexao, "garçom", f"{comanda['garcom_nome'] or 'ninguém'} → {novo}", comanda_id)
         flash("Dados da comanda atualizados.", "ok")
     return _voltar(comanda_id)
 
@@ -340,6 +374,11 @@ def lancar_itens(comanda_id):
         if not pedidos:
             raise ErroComanda("Escolha pelo menos um produto.")
         lancados = lancar(conexao, comanda, pedidos, g.usuario["id"])
+        if comanda["garcom_id"] is None and g.usuario["papel"] == "garcom":
+            # Comanda aberta pelo caixa sem garçom: quem lança o primeiro pedido passa a atender.
+            with conexao:
+                conexao.execute("UPDATE cmd_comandas SET garcom_id = ? WHERE id = ? AND garcom_id IS NULL",
+                                (g.usuario["id"], comanda_id))
     except ErroComanda as erro:
         flash(str(erro), "erro")
     else:
@@ -559,7 +598,8 @@ def historico():
     inicio, fim = ler_periodo(request.args, padrao=hoje_local())
     de, ate = intervalo_utc(inicio, fim)
     comandas = db.obter().execute(
-        "SELECT c.*, u.usuario AS fechada_por_nome, (SELECT a.detalhe FROM cmd_auditoria a WHERE a.comanda_id = c.id "
+        "SELECT c.*, u.usuario AS fechada_por_nome, (SELECT usuario FROM usuarios WHERE id = c.garcom_id) AS garcom_nome, "
+        "(SELECT a.detalhe FROM cmd_auditoria a WHERE a.comanda_id = c.id "
         "AND a.acao = 'fechar conta' ORDER BY a.id DESC LIMIT 1) AS autorizacao "
         "FROM cmd_comandas c LEFT JOIN usuarios u ON u.id = c.fechada_por "
         "WHERE c.empresa_id = ? AND c.status != 'aberta' AND c.fechada_em >= ? AND c.fechada_em < ? ORDER BY c.fechada_em DESC",

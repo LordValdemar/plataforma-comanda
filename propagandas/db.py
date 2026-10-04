@@ -454,6 +454,12 @@ MIGRACOES = [
     ALTER TABLE autorizacoes ADD COLUMN encerrada_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
     CREATE INDEX autorizacoes_liberadas ON autorizacoes(usado_por, funcao);
     """,
+    # 15 - Comanda: o garçom que atende a mesa (aparece na comanda, no cupom e nas contas fechadas).
+    """
+    ALTER TABLE cmd_comandas ADD COLUMN garcom_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+    UPDATE cmd_comandas SET garcom_id = aberta_por
+     WHERE aberta_por IN (SELECT id FROM usuarios WHERE papel = 'garcom');
+    """,
 ]
 
 
