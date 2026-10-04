@@ -7,6 +7,8 @@ Dentro da empresa, o papel do usuário decide a que módulo ele tem acesso.
 
 from flask import abort, g, redirect, render_template, request, url_for
 
+from src.domain.permissoes import PAPEIS_DO_MODULO, modulos_da_pessoa  # noqa: F401 (papéis de cada módulo)
+
 from . import db
 
 MODULOS = {
@@ -16,11 +18,6 @@ MODULOS = {
 DESCRICOES = {
     "painel": "Propagandas nas TVs da loja, com agendamento e relatórios de exibição.",
     "comanda": "Pedidos pelo celular dos garçons, tela da cozinha, fechamento de conta e relatórios de vendas.",
-}
-# Papéis que usam cada módulo (o administrador da empresa usa todos os módulos assinados).
-PAPEIS_DO_MODULO = {
-    "painel": {"admin", "editor"},
-    "comanda": {"admin", "caixa", "garcom", "cozinha"},
 }
 
 
@@ -57,9 +54,7 @@ def da_empresa(conexao, empresa_id):
 
 def do_usuario(usuario, modulos_empresa):
     """Módulos que este usuário abre: os da empresa que combinam com o papel dele."""
-    if usuario["plataforma"]:
-        return set(modulos_empresa)
-    return {m for m in modulos_empresa if usuario["papel"] in PAPEIS_DO_MODULO[m]}
+    return set(modulos_da_pessoa(usuario["papel"], bool(usuario["plataforma"]), modulos_empresa))
 
 
 def carregar():

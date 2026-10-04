@@ -28,7 +28,9 @@ Regras:
 |---|---|
 | 1. Estrutura `src/` e configuração | feita |
 | 2. Comanda (dinheiro, itens, pagamentos, fechamento) | feita |
-| 3. Permissões e autorizações, ponto, painel de propagandas | a fazer |
+| 3a. Permissões e autorizações por QR | feita |
+| 3b. Ponto | a fazer |
+| 3c. Painel de propagandas | a fazer |
 | 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | a fazer |
 
 ## Comanda
@@ -43,3 +45,18 @@ Regras:
 
 Testes: `tests/unidade` (regras, sem banco, em milissegundos) e `tests/test_comanda_repositorio.py`
 (banco de verdade: 8 caixas pagando a mesma conta ao mesmo tempo, erro no meio da gravação, isolamento entre lojas).
+
+## Permissões e autorizações
+
+- `src/domain/permissoes/regras.py`: as funções (`FUNCOES`), os níveis (não, sim, com autorização), os papéis
+  de cada módulo e a `TabelaDePermissoes` da loja: o que cada pessoa pode, quem pode autorizar o quê.
+- `src/domain/permissoes/liberacoes.py`: a `Liberacao` (o código e o que ele liberou: uma vez, por um tempo
+  ou sem prazo) e os erros com a mensagem para quem usa (código vencido, já usado, o próprio código...).
+- `src/domain/permissoes/servico.py`: gerar o código, usar o código, gastar e encerrar a liberação.
+  O relógio e o sorteio do código são injetados, então os testes controlam a hora.
+- `src/infrastructure/sqlite/permissoes.py`: tabelas `configuracoes` e `autorizacoes`, sempre restrito a uma loja.
+  Marcar o código como usado é um `UPDATE ... WHERE usado_em IS NULL`: se duas pessoas leem o mesmo QR, só uma leva.
+- `propagandas/permissoes.py`: as rotas, o decorador `exigir(funcao)` e o que os templates usam.
+
+Testes: `tests/unidade/test_permissoes_dominio.py` (regras, sem banco) e `tests/test_permissoes_repositorio.py`
+(banco de verdade: 8 garçons lendo o mesmo código ao mesmo tempo, isolamento entre lojas).
