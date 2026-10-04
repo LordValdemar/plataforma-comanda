@@ -455,3 +455,28 @@ def test_garcom_que_atende_aparece_na_comanda(logado, app):
     assert "Atendido por joao" in logado.get(f"/comanda/{comanda_joao}/cupom").get_data(as_text=True)
     assert "<td>joao</td>" in logado.get("/comanda/historico").get_data(as_text=True)
     assert ";joao;" in logado.get("/comanda/relatorios/comandas.csv").get_data(as_text=True)
+
+
+def test_cor_da_comanda_segue_a_cozinha(logado, app):
+    lanche, lata = preparar(logado)
+    comanda_id = abrir_comanda(logado, 8)
+
+    def cartao():
+        html = logado.get("/comanda/").get_data(as_text=True)
+        return re.search(r'class="cartao-comanda([^"]*)"', html).group(1).strip()
+
+    assert cartao() == ""                                   # vazia: cor normal
+    postar_c(logado, f"/comanda/{comanda_id}/itens", {f"qtd_{lata}": "1"})
+    assert cartao() == ""                                   # bebida não passa pela cozinha
+    postar_c(logado, f"/comanda/{comanda_id}/itens", {f"qtd_{lanche}": "1"})
+    assert cartao() == "cartao-aguardando"
+    item_id = logado.get("/comanda/api/cozinha").get_json()["comandas"][0]["itens"][0]["id"]
+    token = {"X-CSRF-Token": _csrf_cozinha(logado)}
+    url = f"/comanda/api/cozinha/itens/{item_id}"
+    logado.post(url, data={"status": "preparando"}, headers=token)
+    assert cartao() == "cartao-preparando"
+    logado.post(url, data={"status": "pronto"}, headers=token)
+    assert cartao() == "cartao-pronto"
+    assert "1 pronto para servir" in logado.get("/comanda/").get_data(as_text=True)
+    postar_c(logado, f"/comanda/{comanda_id}/itens/{item_id}", {"acao": "entregue"})
+    assert cartao() == ""                                   # entregue: volta à cor normal

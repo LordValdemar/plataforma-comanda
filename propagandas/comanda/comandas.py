@@ -245,7 +245,8 @@ def lista():
                (SELECT COALESCE(SUM(preco_centavos * quantidade), 0) FROM cmd_itens
                  WHERE comanda_id = c.id AND status != 'cancelado') AS consumo,
                (SELECT COUNT(*) FROM cmd_itens WHERE comanda_id = c.id AND status = 'pronto') AS prontos,
-               (SELECT COUNT(*) FROM cmd_itens WHERE comanda_id = c.id AND status IN ('pendente', 'preparando')) AS na_cozinha
+               (SELECT COUNT(*) FROM cmd_itens WHERE comanda_id = c.id AND status = 'preparando') AS preparando,
+               (SELECT COUNT(*) FROM cmd_itens WHERE comanda_id = c.id AND status = 'pendente') AS aguardando
                , (SELECT usuario FROM usuarios WHERE id = c.garcom_id) AS garcom_nome
         FROM cmd_comandas c WHERE c.empresa_id = ? AND status = 'aberta' ORDER BY numero
         """,
