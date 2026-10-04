@@ -198,9 +198,9 @@ def test_alertas_usam_destinatarios_da_empresa(app):
     app.config.update(ALERTA_WEBHOOK="https://plataforma.invalid", SMTP_HOST="smtp.invalid", ALERTA_EMAILS="dono@x.com")
     principal = {"id": 1, "alerta_emails": "", "alerta_webhook": ""}
     cliente = {"id": 2, "alerta_emails": "cliente@y.com", "alerta_webhook": ""}
-    assert alertas.canais_da_empresa(principal, app.config)["webhook"] == "https://plataforma.invalid"
+    assert alertas.canais_da_empresa(principal, app.config).webhook == "https://plataforma.invalid"
     canais_cliente = alertas.canais_da_empresa(cliente, app.config)
-    assert canais_cliente == {"emails": ["cliente@y.com"], "webhook": "", "nomes": ["e-mail"]}
+    assert (canais_cliente.emails, canais_cliente.webhook, canais_cliente.nomes) == (("cliente@y.com",), "", ["e-mail"])
 
 
 # ---------------------------------------------------------------------------

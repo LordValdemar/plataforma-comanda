@@ -1,26 +1,19 @@
 """Empresas na porta de entrada: o serviço (src/domain/empresas) e os limites do plano de cada uma."""
 
 from src.domain.empresas import MB, ServicoDaPlataforma, ServicoDeEmpresas
+from src.infrastructure.alertas import motivo_para_recusar
 from src.infrastructure.sqlite import RepositorioDeEmpresasSQLite
 
-from . import alertas, db
+from . import db
 
 __all__ = ["MB", "cabe_no_armazenamento", "empresa", "pode_cadastrar_tela", "servico", "servico_da_plataforma", "uso"]
-
-
-def _erro_webhook(url):
-    try:
-        alertas.validar_url_webhook(url)
-    except alertas.EnderecoBloqueado as erro:
-        return str(erro)
-    return None
 
 
 def servico(conexao=None):
     from .auth import EMPRESA_PRINCIPAL  # evita importação circular
 
     return ServicoDeEmpresas(RepositorioDeEmpresasSQLite(conexao or db.obter()), EMPRESA_PRINCIPAL,
-                             conferir_webhook=_erro_webhook)
+                             conferir_webhook=motivo_para_recusar)
 
 
 def empresa(conexao, empresa_id):

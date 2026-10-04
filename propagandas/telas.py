@@ -171,7 +171,7 @@ def excluir_grupo(grupo_id):
 def testar_alerta():
     empresa = planos.empresa(db.obter(), g.empresa_id)
     canais = alertas.canais_da_empresa(empresa, current_app.config)
-    if not canais["nomes"]:
+    if not canais.nomes:
         flash("Nenhum canal de alerta configurado. Configure em “Empresa”.", "erro")
     else:
         erros = alertas.enviar_alerta(f"🔔 Teste de alerta enviado por {g.usuario['usuario']}.", canais)

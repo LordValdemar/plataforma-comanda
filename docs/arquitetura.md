@@ -39,6 +39,7 @@ Regras:
 | 6b. Relatórios (vendas da Comanda e exibições do Painel) | feita |
 | 6c. Empresas: módulos, cadastro, limites do plano e abertura de loja | feita |
 | 6d. Plataforma: criar, suspender e excluir empresas clientes | feita |
+| 6e. Alertas, backup, tarefas de fundo e ajustes da Comanda | feita |
 
 ## Comanda
 
@@ -140,6 +141,21 @@ gravada, isolamento entre lojas, o dia local com fuso).
   `plataforma.py`: a porta de entrada.
 
 Testes: `tests/unidade/test_empresas_dominio.py`, `test_plataforma_dominio.py` e `tests/test_empresas_repositorio.py`.
+
+## Alertas, backup e tarefas de fundo
+
+- `src/domain/alertas.py`: os canais de cada empresa (e-mail só com SMTP configurado; a principal usa os padrões
+  do ambiente), quando uma tela está online e o monitor que avisa uma vez quando a tela cai e outra quando volta.
+- `src/infrastructure/alertas.py`: o envio por e-mail (SMTP) e por webhook, só para endereços https públicos e sem
+  seguir redirecionamentos (proteção contra SSRF); `src/infrastructure/sqlite/monitoramento.py`: telas e empresas.
+- `src/domain/backup.py`: nome dos arquivos, quantos guardar (o mais novo sempre fica) e o que um .zip pode conter
+  (sem caminhos como `../`); `src/infrastructure/backup.py`: criar e restaurar (as versões locais copiam).
+- `src/domain/relatorios/exibicoes.py` (`inicio_da_retencao`) e `src/infrastructure/sqlite/exibicoes.py`
+  (`apagar_exibicoes_anteriores`): a limpeza do histórico de exibições.
+- `propagandas/alertas.py`, `backup.py` e `tarefas.py` (o laço de segundo plano): a porta de entrada.
+- Os ajustes da Comanda conferem a taxa de serviço com a regra da comanda (`taxa_percentual_valida`).
+
+Testes: `tests/unidade/test_alertas_backup_dominio.py` e `tests/test_alertas_backup_infra.py`.
 
 ## Cobrança e Asaas
 

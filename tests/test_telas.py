@@ -200,7 +200,7 @@ def test_envio_real_por_webhook(app, monkeypatch):
 
     monkeypatch.setattr(alertas._abridor, "open", lambda pedido, timeout: chamadas.append(pedido) or Resposta())
     monkeypatch.setattr(alertas.socket, "getaddrinfo", lambda host, porta: [(0, 0, 0, "", ("8.8.8.8", porta))])
-    canais = {"emails": [], "webhook": "https://exemplo.invalid/webhook", "nomes": ["webhook"]}
+    canais = alertas.Canais(webhook="https://exemplo.invalid/webhook")
     assert alertas.enviar_alerta("teste", canais, app.config) == []
     assert b'"text": "teste"' in chamadas[0].data
 

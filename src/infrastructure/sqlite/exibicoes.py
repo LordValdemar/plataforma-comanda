@@ -1,9 +1,11 @@
 """Consultas do relatório de exibições do Painel no SQLite, sempre de uma loja."""
 
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 
 from src.domain.relatorios.exibicoes import ExibicoesDaPropaganda, ExibicoesDaTela, ExibicoesDoDia
+
+from .datas import para_texto
 
 
 class RepositorioDeExibicoesSQLite:
@@ -46,3 +48,9 @@ class RepositorioDeExibicoesSQLite:
                     "FROM exibicoes e LEFT JOIN telas t ON t.id = e.tela_id LEFT JOIN propagandas p ON p.id = e.propaganda_id "
                     f"WHERE {onde} GROUP BY dia, e.tela_id, e.propaganda_id ORDER BY dia, tela, propaganda",
                     [f"{ajuste_minutos:+d} minutes", *parametros])]
+
+
+def apagar_exibicoes_anteriores(conexao: sqlite3.Connection, momento: datetime) -> int:
+    """A limpeza de segundo plano (todas as lojas): apaga o que é de antes de `momento`. Devolve quantas apagou."""
+    with conexao:
+        return conexao.execute("DELETE FROM exibicoes WHERE exibido_em < ?", (para_texto(momento),)).rowcount

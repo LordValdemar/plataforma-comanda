@@ -5,6 +5,8 @@ Nome, CPF/CNPJ, contato, endereço e logo do cupom vêm do cadastro da empresa (
 
 from flask import Blueprint, flash, g, redirect, render_template, request, url_for
 
+from src.domain.comanda import ErroComanda, taxa_percentual_valida
+
 from .. import cadastro, db, modulos
 from .base import gravar_config, ler_config, papel_exigido
 from .comandas import taxa_padrao
@@ -34,11 +36,9 @@ def dados_da_loja():
 def pagina():
     if request.method == "POST":
         try:
-            taxa = float(request.form.get("taxa_servico", "10").replace(",", ".") or 0)
-        except ValueError:
-            taxa = -1
-        if not 0 <= taxa <= 30:
-            flash("A taxa de serviço vai de 0 a 30%.", "erro")
+            taxa = taxa_percentual_valida(request.form.get("taxa_servico", "10"))
+        except ErroComanda as erro:
+            flash(str(erro), "erro")
             return redirect(url_for("comanda_ajustes.pagina"))
         gravar_config("local", request.form.get("local", "").strip()[:60])
         gravar_config("rodape_cupom", request.form.get("rodape_cupom", "").strip()[:160])

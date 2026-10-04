@@ -3,7 +3,9 @@
 import logging
 import threading
 import time
-from datetime import timedelta
+
+from src.domain.relatorios.exibicoes import inicio_da_retencao
+from src.infrastructure.sqlite import apagar_exibicoes_anteriores
 
 from . import agenda, alertas, asaas, backup, cobranca, db, ponto
 
@@ -14,12 +16,10 @@ INTERVALO_MANUTENCAO = 3600
 
 
 def limpar_exibicoes_antigas(config):
-    limite = agenda.para_texto_utc(agenda.agora_utc() - timedelta(days=config["RETER_EXIBICOES_DIAS"]))
-    conexao = db.obter()
-    with conexao:
-        apagadas = conexao.execute("DELETE FROM exibicoes WHERE exibido_em < ?", (limite,)).rowcount
+    dias = config["RETER_EXIBICOES_DIAS"]
+    apagadas = apagar_exibicoes_anteriores(db.obter(), inicio_da_retencao(agenda.agora_utc(), dias))
     if apagadas:
-        log.info("%d registro(s) de exibição com mais de %d dias apagados", apagadas, config["RETER_EXIBICOES_DIAS"])
+        log.info("%d registro(s) de exibição com mais de %d dias apagados", apagadas, dias)
 
 
 def manutencao(config):

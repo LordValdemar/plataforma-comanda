@@ -38,7 +38,7 @@ ler_reais = ler_preco   # nome antigo: preço digitado → centavos (None se inv
 def _avisar_plataforma(mensagem):
     principal = db.obter().execute("SELECT * FROM empresas WHERE id = ?", (EMPRESA_PRINCIPAL,)).fetchone()
     canais = alertas.canais_da_empresa(principal, current_app.config)
-    if canais["nomes"]:
+    if canais.nomes:
         alertas.enviar_alerta(mensagem, canais)
 
 
