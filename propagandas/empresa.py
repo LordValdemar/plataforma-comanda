@@ -25,7 +25,8 @@ def configuracoes():
     conexao = db.obter()
     if request.method == "POST":
         nome = request.form.get("nome", "").strip()[:100]
-        codigo = request.form.get("codigo", "").strip().lower()
+        # Sem o campo no formulário, o código continua o mesmo.
+        codigo = request.form.get("codigo", g.usuario["empresa_slug"] or "").strip().lower()
         emails = [e.strip() for e in request.form.get("alerta_emails", "").split(",") if e.strip()]
         webhook = request.form.get("alerta_webhook", "").strip()[:500]
         if not nome:
