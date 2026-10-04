@@ -5,8 +5,8 @@ from zoneinfo import ZoneInfo
 
 from flask import current_app
 
-DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]  # índice = datetime.weekday()
-TODOS_OS_DIAS = "0123456"
+from src.domain.horario import DIAS, TODOS_OS_DIAS, resumo_dias, resumo_horario  # noqa: F401 (usados pelas telas)
+
 FORMATO_UTC = "%Y-%m-%d %H:%M:%S"  # como as datas/horas ficam gravadas no banco (sempre UTC)
 
 
@@ -105,23 +105,6 @@ def situacao(item, agora):
 
 def esta_no_ar(item, agora):
     return situacao(item, agora)[0] == "no_ar"
-
-
-def resumo_dias(dias):
-    dias = dias or TODOS_OS_DIAS
-    if dias == TODOS_OS_DIAS:
-        return "Todos os dias"
-    if dias == "01234":
-        return "Seg a Sex"
-    if dias == "56":
-        return "Sáb e Dom"
-    return ", ".join(DIAS[int(d)] for d in dias)
-
-
-def resumo_horario(inicio, fim):
-    if not inicio and not fim:
-        return "o dia todo"
-    return f"{inicio or '00:00'} às {fim or '24:00'}"
 
 
 def offset_minutos(dia):

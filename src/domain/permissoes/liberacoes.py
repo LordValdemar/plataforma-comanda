@@ -39,10 +39,6 @@ class CodigoJaUsado(ErroDeAutorizacao):
         super().__init__("Este código de autorização já foi usado. Peça um novo.")
 
 
-class SemPermissao(ErroDeDominio):
-    """A pessoa não pode fazer isto (para a porta de entrada: 403)."""
-
-
 def gerar_codigo() -> str:
     return "".join(secrets.choice(LETRAS_DO_CODIGO) for _ in range(TAMANHO_DO_CODIGO))
 

@@ -29,7 +29,7 @@ Regras:
 | 1. Estrutura `src/` e configuração | feita |
 | 2. Comanda (dinheiro, itens, pagamentos, fechamento) | feita |
 | 3a. Permissões e autorizações por QR | feita |
-| 3b. Ponto | a fazer |
+| 3b. Ponto | feita |
 | 3c. Painel de propagandas | a fazer |
 | 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | a fazer |
 
@@ -60,3 +60,18 @@ Testes: `tests/unidade` (regras, sem banco, em milissegundos) e `tests/test_coma
 
 Testes: `tests/unidade/test_permissoes_dominio.py` (regras, sem banco) e `tests/test_permissoes_repositorio.py`
 (banco de verdade: 8 garçons lendo o mesmo código ao mesmo tempo, isolamento entre lojas).
+
+## Ponto
+
+- `src/domain/horario.py`: dias da semana e o `Horario` (inclusive o turno que vira a noite), usado também
+  pela agenda das propagandas.
+- `src/domain/ponto/qr.py`: o QR code da loja (muda a cada 2 minutos e a cada uso, assinado com a chave
+  da loja) e o código curto de 6 letras.
+- `src/domain/ponto/servico.py`: entrada, saída, fechamento no fim do horário, horários, desconectar e o
+  relatório de horas. Relógio e fuso injetados.
+- `src/domain/tentativas.py`: limite de códigos errados por pessoa.
+- `src/infrastructure/sqlite/ponto.py`: `ponto_registros`, os horários em `usuarios` e os ajustes, restrito a uma loja.
+- `propagandas/ponto.py`: as rotas, a presença confirmada (na sessão) e o before_request que segura quem está sem ponto.
+
+Testes: `tests/unidade/test_ponto_dominio.py` (regras, sem banco) e `tests/test_ponto_repositorio.py`
+(banco de verdade: 8 pessoas lendo o mesmo QR ao mesmo tempo, isolamento entre lojas).

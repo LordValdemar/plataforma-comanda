@@ -2,5 +2,6 @@
 
 from .comandas import RepositorioDeComandasSQLite
 from .permissoes import RepositorioDePermissoesSQLite
+from .ponto import RepositorioDePontoSQLite
 
-__all__ = ["RepositorioDeComandasSQLite", "RepositorioDePermissoesSQLite"]
+__all__ = ["RepositorioDeComandasSQLite", "RepositorioDePermissoesSQLite", "RepositorioDePontoSQLite"]

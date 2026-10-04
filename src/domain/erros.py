@@ -7,3 +7,7 @@ class ErroDeDominio(ValueError):
 
 class NaoEncontrado(ErroDeDominio):
     """O registro não existe (ou é de outra loja, o que para quem pede dá no mesmo)."""
+
+
+class SemPermissao(ErroDeDominio):
+    """A pessoa não pode fazer isto (na porta de entrada: 403)."""

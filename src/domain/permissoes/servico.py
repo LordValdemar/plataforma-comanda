@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
-from ..erros import NaoEncontrado
+from ..erros import NaoEncontrado, SemPermissao
 from .liberacoes import (
     GUARDAR_DIAS,
     MODOS,
@@ -17,7 +17,6 @@ from .liberacoes import (
     CodigoVencido,
     ErroDeAutorizacao,
     Liberacao,
-    SemPermissao,
     gerar_codigo,
     ler_minutos,
 )

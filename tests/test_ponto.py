@@ -86,6 +86,7 @@ def test_entrada_e_saida(logado, app):
     registro = consultar(app, "SELECT * FROM ponto_registros")[0]
     assert registro["saida"] and registro["motivo_saida"] == "saída" and registro["usuario_nome"] == "joao"
     assert joao.get("/comanda/").headers["Location"].startswith("/login")
+    assert "Saída registrada às" in joao.get("/login").get_data(as_text=True)  # o aviso sobrevive à saída
 
 
 def test_administrador_nao_bate_ponto(logado, app):

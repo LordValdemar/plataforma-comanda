@@ -1,5 +1,6 @@
 """Permissões por papel e autorizações por QR code (sem banco nem Flask)."""
 
+from ..erros import SemPermissao
 from .liberacoes import (
     CODIGO_SEGUNDOS,
     LETRAS_DO_CODIGO,
@@ -10,7 +11,6 @@ from .liberacoes import (
     CodigoVencido,
     ErroDeAutorizacao,
     Liberacao,
-    SemPermissao,
     descrever,
     ler_minutos,
     normalizar_codigo,

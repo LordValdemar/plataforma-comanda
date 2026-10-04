@@ -3,25 +3,18 @@
 import sqlite3
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime
 
 from src.domain.permissoes import Cadastro, Liberacao
 
-FORMATO_BANCO = "%Y-%m-%d %H:%M:%S"  # UTC, como o CURRENT_TIMESTAMP do SQLite
+from .datas import de_texto, para_texto
+
 _CHAVE = "permissao.{}.{}"
 _SELECT = (
     "SELECT a.*, u.usuario AS quem_usou, p.usuario AS quem_autorizou FROM autorizacoes a "
     "LEFT JOIN usuarios u ON u.id = a.usado_por LEFT JOIN usuarios p ON p.id = a.autorizado_por "
 )
 _VALENDO = "a.usado_em IS NOT NULL AND a.revogada_em IS NULL AND a.consumida_em IS NULL AND (a.modo != 'minutos' OR a.ate > ?)"
-
-
-def para_texto(momento: datetime) -> str:
-    return momento.astimezone(timezone.utc).strftime(FORMATO_BANCO)
-
-
-def de_texto(texto: str | None) -> datetime | None:
-    return datetime.strptime(texto, FORMATO_BANCO).replace(tzinfo=timezone.utc) if texto else None
 
 
 def _liberacao(linha: sqlite3.Row) -> Liberacao:
