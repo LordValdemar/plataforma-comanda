@@ -5,6 +5,7 @@ import io
 import json
 import logging
 import os
+import sqlite3
 import tempfile
 import zipfile
 
@@ -12,6 +13,7 @@ from flask import Blueprint, current_app, flash, g, redirect, render_template, r
 
 from . import agenda, alertas, db, planos
 from .auth import login_obrigatorio
+from .conta import SLUG_VALIDO, SLUGS_RESERVADOS
 
 bp = Blueprint("empresa", __name__)
 log = logging.getLogger("propagandas.empresa")
@@ -23,20 +25,33 @@ def configuracoes():
     conexao = db.obter()
     if request.method == "POST":
         nome = request.form.get("nome", "").strip()[:100]
+        codigo = request.form.get("codigo", "").strip().lower()
         emails = [e.strip() for e in request.form.get("alerta_emails", "").split(",") if e.strip()]
         webhook = request.form.get("alerta_webhook", "").strip()[:500]
         if not nome:
             flash("Informe o nome da empresa.", "erro")
+        elif not SLUG_VALIDO.match(codigo) or codigo in SLUGS_RESERVADOS:
+            flash("O código da loja usa só letras minúsculas, números e hífen (de 3 a 40), ex.: padeiro-lanches.", "erro")
+        elif conexao.execute("SELECT 1 FROM empresas WHERE slug = ? AND id != ?", (codigo, g.empresa_id)).fetchone():
+            flash(f"O código “{codigo}” já é de outra loja. Escolha outro.", "erro")
         elif any("@" not in e or " " in e for e in emails):
             flash("Confira os e-mails de alerta (separe por vírgula).", "erro")
         elif webhook and (erro_webhook := _erro_webhook(webhook)):
             flash(f"Webhook recusado: {erro_webhook}.", "erro")
         else:
-            with conexao:
-                conexao.execute(
-                    "UPDATE empresas SET nome = ?, alerta_emails = ?, alerta_webhook = ? WHERE id = ?",
-                    (nome, ", ".join(emails), webhook, g.empresa_id),
-                )
+            try:
+                with conexao:
+                    conexao.execute(
+                        "UPDATE empresas SET nome = ?, slug = ?, alerta_emails = ?, alerta_webhook = ? WHERE id = ?",
+                        (nome, codigo, ", ".join(emails), webhook, g.empresa_id),
+                    )
+            except sqlite3.IntegrityError:  # outra loja pegou o mesmo código ao mesmo tempo
+                flash(f"O código “{codigo}” já é de outra loja. Escolha outro.", "erro")
+                return redirect(url_for("empresa.configuracoes"))
+            if codigo != g.usuario["empresa_slug"]:
+                log.info("“%s” trocou o código da loja de “%s” para “%s”", g.usuario["usuario"], g.usuario["empresa_slug"], codigo)
+                flash(f"Código da loja trocado. O endereço de entrada da equipe agora é "
+                      f"{url_for('auth.entrar_na_loja', slug=codigo, _external=True)}", "ok")
             log.info("“%s” alterou as configurações da empresa %s", g.usuario["usuario"], g.empresa_id)
             flash("Configurações salvas.", "ok")
             return redirect(url_for("empresa.configuracoes"))

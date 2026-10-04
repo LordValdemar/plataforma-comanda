@@ -7,6 +7,13 @@
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="campo"><label for="nome">Nome</label><input type="text" id="nome" name="nome" value="{{ empresa.nome }}" maxlength="100" required></div>
+    <div class="campo">
+      <label for="codigo">Código da loja (usado no endereço de entrada da equipe)</label>
+      <input type="text" id="codigo" name="codigo" value="{{ empresa.slug }}" maxlength="40" required
+             pattern="[a-z0-9][a-z0-9\-]{1,38}[a-z0-9]" placeholder="ex.: comercial-gustavo" autocapitalize="none" spellcheck="false">
+      <p class="dica">Só letras minúsculas, números e hífen. Endereço atual: <span class="endereco">{{ url_for('auth.entrar_na_loja', slug=empresa.slug, _external=True) }}</span><br>
+        Se trocar, o endereço antigo para de funcionar: avise a equipe e mande o novo.</p>
+    </div>
     <h3>Quem recebe os alertas de tela offline</h3>
     <div class="campo">
       <label for="alerta_emails">E-mails (separados por vírgula)</label>

@@ -321,3 +321,20 @@ def test_lote_e_pausa_nao_alcancam_outra_empresa(duas_empresas):
     postar(joao, "/pausa", {"acao": "pausar"})
     assert dono.get("/api/playlist").get_json()["pausado"] is False
     assert [i["id"] for i in dono.get("/api/playlist").get_json()["itens"]] == [pid]
+
+
+def test_trocar_o_codigo_da_loja(duas_empresas):
+    dono, joao, cliente_id = duas_empresas
+    antigo = consultar(dono, "SELECT slug FROM empresas WHERE id = ?", cliente_id)[0][0]
+    dados = {"nome": "Padaria Cliente", "alerta_emails": "", "alerta_webhook": ""}
+
+    resposta = postar(joao, "/empresa", {**dados, "codigo": "padaria-do-joao"}, pagina="/empresa", follow_redirects=True)
+    assert "/entrar/padaria-do-joao" in resposta.get_data(as_text=True)
+    assert consultar(dono, "SELECT slug FROM empresas WHERE id = ?", cliente_id)[0][0] == "padaria-do-joao"
+    assert joao.application.test_client().get(f"/entrar/{antigo}").status_code == 404
+
+    # Inválido, reservado ou de outra loja: não muda.
+    codigo_do_dono = consultar(dono, "SELECT slug FROM empresas WHERE id = 1")[0][0]
+    for ruim in ("Com Espaço", "-x", "ab", "admin", codigo_do_dono):
+        postar(joao, "/empresa", {**dados, "codigo": ruim}, pagina="/empresa")
+        assert consultar(dono, "SELECT slug FROM empresas WHERE id = ?", cliente_id)[0][0] == "padaria-do-joao"
