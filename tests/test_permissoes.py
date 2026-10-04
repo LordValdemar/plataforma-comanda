@@ -241,3 +241,33 @@ def test_tipos_de_liberacao_uma_vez_por_tempo_e_sem_prazo(logado, app):
     assert postar_c(pessoa(app, "outro"), f"/autorizar/{liberacao}/encerrar").status_code == 403  # não foi ele
     postar_c(caixa, f"/autorizar/{liberacao}/encerrar")
     assert maria.get(f"/comanda/{segunda}/fechar").status_code == 403
+
+
+def test_so_quem_tem_autorizar_os_outros_mostra_o_qr(logado, app):
+    criar_pessoa(app, "edilson", "garcom")
+    criar_pessoa(app, "caixa", "caixa")
+    permitir(logado, **{"cancelar.garcom": permissoes.AUTORIZACAO})
+    with app.app_context():
+        conexao = db.obter()
+        with conexao:  # o administrador deixou o edilson fechar contas (permissão só dele)
+            conexao.execute("UPDATE usuarios SET fecha_conta = 1 WHERE usuario = 'edilson'")
+    edilson, caixa = pessoa(app, "edilson"), pessoa(app, "caixa")
+
+    # Fechar conta ele pode, mas autorizar os outros, não: nem o menu aparece.
+    assert edilson.get("/autorizar").status_code == 403
+    assert edilson.get("/autorizar?funcao=fechar_conta&modo=uma").status_code == 403
+    assert "Autorizar</a>" not in edilson.get("/comanda/").get_data(as_text=True)
+
+    # O caixa autoriza (padrão), e só vê o histórico das autorizações que ele mesmo deu.
+    codigo = codigo_do_qr(caixa, "cancelar")
+    edilson.get(f"/autorizacao/{codigo}")
+    criar_pessoa(app, "maria", "garcom")
+    pessoa(app, "maria").get(f"/autorizacao/{codigo_do_qr(logado, 'cancelar')}")
+    pagina = caixa.get("/autorizar").get_data(as_text=True)
+    assert "edilson" in pagina and "maria" not in pagina
+    assert "maria" in logado.get("/autorizar").get_data(as_text=True)
+
+    # O administrador tira o "Autorizar os outros" do caixa.
+    assert "Autorizar os outros" in logado.get("/permissoes").get_data(as_text=True)
+    permitir(logado, **{"autorizar_comanda.caixa": permissoes.NAO})
+    assert caixa.get("/autorizar").status_code == 403

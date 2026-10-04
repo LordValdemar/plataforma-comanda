@@ -90,6 +90,17 @@ FUNCOES = {
         "descricao": "Cadastrar produtos, preços e categorias.",
         "padrao": {}, "autorizavel": True,
     },
+    "autorizar_painel": {
+        "modulo": "painel", "nome": "Autorizar os outros",
+        "descricao": "Mostrar o QR code que libera quem precisa de autorização (só nas funções em que tem “Sim”).",
+        "padrao": {}, "autorizavel": False,
+    },
+    "autorizar_comanda": {
+        "modulo": "comanda", "nome": "Autorizar os outros",
+        "descricao": "Mostrar o QR code que libera quem precisa de autorização (só nas funções em que tem “Sim”). "
+                     "A permissão individual de fechar contas não inclui autorizar.",
+        "padrao": {"caixa": SIM}, "autorizavel": False,
+    },
 }
 # Combinações fixas (sem elas o papel não teria o que fazer).
 FIXAS = {("cozinha", "cozinha"): SIM}
@@ -251,13 +262,21 @@ def _caminho_seguro(endereco):
     return caminho.startswith("/") and not caminho.startswith("//") and "\\" not in caminho
 
 
+def pode_autorizar(funcao, usuario=None):
+    """Pode mostrar o QR que libera os outros nesta função: tem "Sim" nela e a permissão "Autorizar os outros"."""
+    usuario = usuario if usuario is not None else g.get("usuario")
+    if usuario is None or nivel(funcao, usuario) != SIM:
+        return False
+    return usuario["papel"] == "admin" or nivel("autorizar_" + FUNCOES[funcao]["modulo"], usuario) == SIM
+
+
 def funcoes_que_pode_autorizar():
     """Funções em que a pessoa tem "sim" e algum papel da loja precisa de autorização."""
     if g.get("usuario") is None:
         return []
     resultado = []
     for funcao, definicao in FUNCOES.items():
-        if not definicao["autorizavel"] or nivel(funcao) != SIM:
+        if not definicao["autorizavel"] or not pode_autorizar(funcao):
             continue
         papeis = PAPEIS_CONFIGURAVEIS[definicao["modulo"]]
         if any(nivel_do_papel(g.empresa_id, funcao, papel) == AUTORIZACAO for papel in papeis) or g.usuario["papel"] == "admin":
@@ -366,8 +385,8 @@ def autorizar():
     recentes = conexao.execute(
         "SELECT a.*, u.usuario AS quem_usou, p.usuario AS quem_autorizou FROM autorizacoes a "
         "LEFT JOIN usuarios u ON u.id = a.usado_por LEFT JOIN usuarios p ON p.id = a.autorizado_por "
-        "WHERE a.empresa_id = ? AND a.usado_em IS NOT NULL ORDER BY a.usado_em DESC LIMIT 15",
-        (g.empresa_id,),
+        "WHERE a.empresa_id = ? AND a.usado_em IS NOT NULL AND (? OR a.autorizado_por = ?) ORDER BY a.usado_em DESC LIMIT 15",
+        (g.empresa_id, g.usuario["papel"] == "admin", g.usuario["id"]),  # quem não é administrador vê só as que deu
     ).fetchall()
     # Liberações que ainda valem (o administrador vê todas; quem autoriza, as que deu) e podem ser encerradas.
     ativas = conexao.execute(
@@ -484,7 +503,7 @@ def usar(codigo):
     # Quem autorizou ainda pode a função? (pode ter mudado de papel depois de abrir o QR)
     autorizador = conexao.execute("SELECT * FROM usuarios WHERE id = ? AND empresa_id = ?",
                                   (linha["autorizado_por"], g.empresa_id)).fetchone()
-    if autorizador is None or nivel(funcao, autorizador) != SIM:
+    if autorizador is None or not pode_autorizar(funcao, autorizador):
         flash("Quem mostrou o código não pode mais autorizar isso.", "erro")
         return redirect(voltar)
     agora = agenda.para_texto_utc(agenda.agora_utc())
