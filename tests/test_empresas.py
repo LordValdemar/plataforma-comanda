@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from conftest import PNG, csrf, enviar, postar
+from conftest import PNG, conectar_tv, csrf, enviar, postar
 from propagandas import alertas, create_app, db, totp
 from propagandas.db import MIGRACOES
 
@@ -32,8 +32,11 @@ def entrar(app, usuario, senha="senha-do-cliente"):
 
 
 def criar_tela(cliente, nome):
+    """Cadastra a tela e conecta o próprio cliente do teste como a TV dela."""
     postar(cliente, "/telas/nova", {"nome": nome}, pagina="/telas")
-    return consultar(cliente, "SELECT * FROM telas WHERE nome = ?", nome)[0]
+    tela = consultar(cliente, "SELECT * FROM telas WHERE nome = ?", nome)[0]
+    conectar_tv(cliente, tela["id"])
+    return tela
 
 
 @pytest.fixture
@@ -152,11 +155,11 @@ def test_suspender_empresa(duas_empresas):
     novo = joao.application.test_client()
     bloqueado = novo.post("/login", data={"usuario": "joao", "senha": "senha-do-cliente", "csrf_token": csrf(novo)})
     assert bloqueado.status_code == 403
-    assert novo.get(f"/api/tela/{tela['codigo']}/playlist").get_json()["itens"] == []
+    assert joao.get(f"/api/tela/{tela['codigo']}/playlist").get_json()["itens"] == []  # a TV (aparelho do João)
 
     postar(dono, f"/plataforma/empresas/{cliente_id}/atualizar", {"nome": "Padaria Cliente", "ativa": "on"},
            pagina="/plataforma/")
-    assert len(novo.get(f"/api/tela/{tela['codigo']}/playlist").get_json()["itens"]) == 1
+    assert len(joao.get(f"/api/tela/{tela['codigo']}/playlist").get_json()["itens"]) == 1
 
     # A empresa principal nunca é suspensa
     postar(dono, "/plataforma/empresas/1/atualizar", {"nome": "Minha"}, pagina="/plataforma/")

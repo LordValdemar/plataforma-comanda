@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block titulo %}Conectar TV{% endblock %}
+{% block classe_main %}medio{% endblock %}
+{% block conteudo %}
+<section>
+  <h2>Conectar a TV <span class="selo">{{ codigo }}</span></h2>
+  {% if telas %}
+    <p>Qual tela esta TV vai mostrar?</p>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="escolha-tela">
+        {% for t in telas %}
+          <label class="marcar"><input type="radio" name="tela_id" value="{{ t.id }}" required {% if loop.first and telas|length == 1 %}checked{% endif %}>
+            <span><b>{{ t.nome }}</b>{% if t.aparelho_hash %} <span class="dica">· já tem uma TV conectada: ela será trocada por esta</span>{% endif %}</span></label>
+        {% endfor %}
+      </div>
+      <button type="submit" class="largo">Conectar esta TV</button>
+    </form>
+  {% else %}
+    <p>Sua loja ainda não tem telas cadastradas.{% if g.usuario.papel == 'admin' %} Cadastre em <a href="{{ url_for('telas.lista') }}">Telas</a> e leia o QR code da TV de novo.{% else %} Peça ao administrador para cadastrar.{% endif %}</p>
+  {% endif %}
+</section>
+{% endblock %}

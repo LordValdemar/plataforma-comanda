@@ -7,7 +7,7 @@ import unicodedata
 
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, url_for
 
-from . import alertas, db, modulos, planos
+from . import alertas, db, exibicao, modulos, planos
 from .auth import login_obrigatorio
 
 bp = Blueprint("telas", __name__)
@@ -91,11 +91,12 @@ def nova():
         return redirect(url_for("telas.lista"))
     with conexao:
         conexao.execute(
-            "INSERT INTO telas (empresa_id, nome, codigo, grupo_id) VALUES (?, ?, ?, ?)",
+            # Tela nova só funciona no aparelho conectado pelo QR code da página /tela.
+            "INSERT INTO telas (empresa_id, nome, codigo, grupo_id, aceita_link) VALUES (?, ?, ?, ?, 0)",
             (g.empresa_id, nome, novo_codigo(conexao, nome), _ler_grupo(conexao)),
         )
     log.info("“%s” cadastrou a tela “%s”", g.usuario["usuario"], nome)
-    flash(f"Tela “{nome}” cadastrada. Abra o endereço dela na TV.", "ok")
+    flash(f"Tela “{nome}” cadastrada. Na TV, abra {url_for('exibicao.conectar', _external=True)} e leia o QR code com o celular.", "ok")
     return redirect(url_for("telas.lista"))
 
 
@@ -126,6 +127,52 @@ def trocar_codigo(tela_id):
                         (novo_codigo(conexao, tela["nome"]), tela_id, g.empresa_id))
     log.info("“%s” gerou novo endereço para a tela “%s”", g.usuario["usuario"], tela["nome"])
     flash(f"Novo endereço gerado para “{tela['nome']}”. O endereço antigo parou de funcionar.", "ok")
+    return redirect(url_for("telas.lista"))
+
+
+@bp.route("/tela/parear/<codigo>", methods=["GET", "POST"])
+@login_obrigatorio()
+def parear(codigo):
+    """Aberta pelo celular ao ler o QR code da TV: escolhe qual tela aquela TV vai mostrar."""
+    if g.usuario["papel"] not in ("admin", "editor"):
+        abort(403)
+    conexao = db.obter()
+    pedido = exibicao.pedido_por_codigo(conexao, codigo)
+    if pedido is None:
+        flash("Este código de conexão venceu ou não existe. Na TV, abra de novo o endereço /tela e leia o código novo.", "erro")
+        return redirect(url_for("painel.lista"))
+    telas = conexao.execute("SELECT * FROM telas WHERE empresa_id = ? ORDER BY nome", (g.empresa_id,)).fetchall()
+    if request.method == "POST":
+        tela = next((t for t in telas if str(t["id"]) == request.form.get("tela_id")), None)
+        if tela is None:
+            flash("Escolha uma das telas da lista.", "erro")
+        elif pedido["tela_id"] is not None:
+            flash("Esta TV já foi conectada.", "erro")
+        else:
+            exibicao.conectar_aparelho(conexao, pedido, tela)
+            log.info("“%s” conectou um aparelho à tela “%s”", g.usuario["usuario"], tela["nome"])
+            flash(f"TV conectada à tela “{tela['nome']}”. Em alguns segundos ela começa a mostrar as propagandas.", "ok")
+            return redirect(url_for("telas.lista") if g.usuario["papel"] == "admin" else url_for("painel.lista"))
+    return render_template("tela_parear.html", codigo=pedido["codigo"], telas=telas)
+
+
+@bp.route("/telas/conectar", methods=["POST"])
+@login_obrigatorio("admin")
+def conectar_por_codigo():
+    """Para quando a câmera não funciona: digita o código que aparece na TV."""
+    codigo = "".join(c for c in request.form.get("codigo", "").upper() if c.isalnum())[:6]
+    return redirect(url_for("telas.parear", codigo=codigo or "-"))
+
+
+@bp.route("/telas/<int:tela_id>/desconectar-aparelho", methods=["POST"])
+@login_obrigatorio("admin")
+def desconectar_aparelho(tela_id):
+    conexao = db.obter()
+    tela = _buscar(conexao, tela_id)
+    with conexao:
+        conexao.execute("UPDATE telas SET aparelho_hash = NULL, pareada_em = NULL, aceita_link = 0 WHERE id = ?", (tela_id,))
+    log.info("“%s” desconectou o aparelho da tela “%s”", g.usuario["usuario"], tela["nome"])
+    flash(f"Aparelho desconectado da tela “{tela['nome']}”. Ele volta para a página do QR code.", "ok")
     return redirect(url_for("telas.lista"))
 
 

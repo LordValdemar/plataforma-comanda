@@ -402,6 +402,25 @@ MIGRACOES = [
     CREATE UNIQUE INDEX ponto_um_aberto ON ponto_registros(usuario_id) WHERE saida IS NULL;
     CREATE INDEX ponto_empresa_entrada ON ponto_registros(empresa_id, entrada);
     """,
+    # 10 - pareamento: cada tela funciona só no aparelho conectado a ela (pelo QR code da
+    # página /tela). Guarda o hash do "crachá" (cookie secreto) do aparelho.
+    # aceita_link = 1 só nas telas que já existiam: a TV que já usa o endereço se conecta
+    # sozinha no próximo contato, uma vez. Telas novas só se conectam pelo QR code.
+    """
+    ALTER TABLE telas ADD COLUMN aparelho_hash TEXT;
+    ALTER TABLE telas ADD COLUMN pareada_em TEXT;
+    ALTER TABLE telas ADD COLUMN aceita_link INTEGER NOT NULL DEFAULT 1;
+
+    -- Pedido de conexão feito por uma TV na página /tela: o código curto vai no QR code;
+    -- o segredo fica só no cookie da TV (aqui, só o hash).
+    CREATE TABLE pareamentos (
+        id            INTEGER PRIMARY KEY,
+        codigo        TEXT    NOT NULL UNIQUE,
+        segredo_hash  TEXT    NOT NULL UNIQUE,
+        criado_em     TEXT    NOT NULL,
+        tela_id       INTEGER REFERENCES telas(id) ON DELETE CASCADE
+    );
+    """,
 ]
 
 

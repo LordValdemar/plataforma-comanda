@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from conftest import PNG, csrf, enviar, postar
+from conftest import PNG, conectar_tv, csrf, enviar, postar
 from propagandas import asaas, cobranca, db
 
 TOKEN = "token-do-webhook-com-mais-de-32-caracteres"
@@ -232,7 +232,9 @@ def test_atraso_suspende_e_pagamento_libera(cliente_com_plano):
     mercado.post("/login", data={"usuario": "mercado", "senha": "senha-do-mercado", "csrf_token": csrf(mercado)})
     enviar(mercado, "oferta.png", PNG)
     postar(mercado, "/telas/nova", {"nome": "Caixa"}, pagina="/telas")
-    codigo = consultar(plataforma, "SELECT codigo FROM telas WHERE empresa_id = ?", empresa_id)[0]["codigo"]
+    tela = consultar(plataforma, "SELECT id, codigo FROM telas WHERE empresa_id = ?", empresa_id)[0]
+    codigo = tela["codigo"]
+    tv = conectar_tv(mercado, tela["id"], tv=plataforma.application.test_client())
 
     # Vencida há 2 dias: dentro da tolerância (5), só avisa
     resposta = webhook(plataforma, "PAYMENT_OVERDUE", pagamento(status="OVERDUE", vencimento=hoje() - timedelta(days=2)))
@@ -245,7 +247,7 @@ def test_atraso_suspende_e_pagamento_libera(cliente_com_plano):
     assert webhook(plataforma, "PAYMENT_OVERDUE", vencida, id_evento="evt_2").get_json()["resultado"] == "suspensa"
     e = empresa(plataforma, empresa_id)
     assert (e["ativa"], e["motivo_suspensao"]) == (0, "inadimplencia")
-    assert plataforma.get(f"/api/tela/{codigo}/playlist").get_json()["itens"] == []
+    assert tv.get(f"/api/tela/{codigo}/playlist").get_json()["itens"] == []
 
     # O cliente entra, mas só vê a página de pagamento, com o link da fatura
     assert mercado.get("/").headers["Location"].endswith("/pagamento")
@@ -261,7 +263,7 @@ def test_atraso_suspende_e_pagamento_libera(cliente_com_plano):
     assert webhook(plataforma, "PAYMENT_RECEIVED", pago).get_json()["resultado"] == "reativada"
     assert empresa(plataforma, empresa_id)["ativa"] == 1
     assert mercado.get("/").status_code == 200
-    assert len(plataforma.get(f"/api/tela/{codigo}/playlist").get_json()["itens"]) == 1
+    assert len(tv.get(f"/api/tela/{codigo}/playlist").get_json()["itens"]) == 1
 
 
 def test_evento_repetido_e_ignorado(cliente_com_plano):

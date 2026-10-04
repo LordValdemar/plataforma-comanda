@@ -5,7 +5,7 @@ import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
-from conftest import PNG, enviar, postar
+from conftest import PNG, conectar_tv, enviar, postar
 from propagandas import agenda, alertas, create_app, db, tarefas
 
 
@@ -20,7 +20,10 @@ def criar_grupo(cliente, nome):
 
 
 def criar_tela(cliente, nome, grupo_id=""):
+    """Cadastra a tela e conecta o próprio cliente do teste como a TV dela."""
     postar(cliente, "/telas/nova", {"nome": nome, "grupo_id": str(grupo_id)}, pagina="/telas")
+    tela = consultar(cliente, "SELECT * FROM telas WHERE nome = ?", nome)[0]
+    conectar_tv(cliente, tela["id"])
     return consultar(cliente, "SELECT * FROM telas WHERE nome = ?", nome)[0]
 
 
@@ -99,11 +102,11 @@ def test_letreiro_proprio_da_tela(logado):
 def test_codigo_da_tela(logado):
     tela = criar_tela(logado, "Balcão")
     anonimo = logado.application.test_client()
-    assert anonimo.get(f"/tela/{tela['codigo']}").status_code == 200
+    assert logado.get(f"/tela/{tela['codigo']}").status_code == 200
     assert anonimo.get("/tela/codigo-inventado").status_code == 404
     assert anonimo.get("/api/tela/codigo-inventado/playlist").status_code == 404
     postar(logado, f"/telas/{tela['id']}/novo-codigo", pagina="/telas")
-    assert anonimo.get(f"/tela/{tela['codigo']}").status_code == 404
+    assert logado.get(f"/tela/{tela['codigo']}").status_code == 404
 
     # O endereço usa o nome da tela (sem acentos) + 6 letras aleatórias.
     assert re.fullmatch(r"balcao-[a-z2-9]{6}", tela["codigo"])
@@ -111,7 +114,7 @@ def test_codigo_da_tela(logado):
     postar(logado, f"/telas/{tela['id']}/novo-codigo", pagina="/telas")
     novo = consultar(logado, "SELECT codigo FROM telas WHERE id = ?", tela["id"])[0][0]
     assert re.fullmatch(r"promocoes-da-semana-[a-z2-9]{6}", novo)
-    assert anonimo.get(f"/tela/{novo}").status_code == 200
+    assert logado.get(f"/tela/{novo}").status_code == 200  # o aparelho continua conectado
 
 
 def test_pulso_registra_contato_e_exibicoes(logado):
@@ -126,8 +129,13 @@ def test_pulso_registra_contato_e_exibicoes(logado):
         {"propaganda_id": pid, "inicio": (agora + timedelta(days=2)).isoformat(), "duracao": 5},  # futuro
         {"propaganda_id": pid, "inicio": agora.isoformat(), "duracao": -1},
     ]
-    # Rota das TVs não usa sessão: funciona sem CSRF e sem login.
-    tv = logado.application.test_client()
+    # Outro aparelho, mesmo com o endereço, não registra nada (a tela está conectada a outra TV).
+    intruso = logado.application.test_client()
+    assert intruso.post(f"/api/tela/{tela['codigo']}/pulso", json={"exibicoes": lote}).status_code == 403
+    assert intruso.get(f"/api/tela/{tela['codigo']}/playlist").status_code == 403
+    assert intruso.get(f"/tela/{tela['codigo']}").headers["Location"].endswith("/tela")
+    # Rota das TVs não usa sessão: funciona sem CSRF; vale o "crachá" da TV conectada.
+    tv = logado
     resposta = tv.post(f"/api/tela/{tela['codigo']}/pulso", json={"exibindo": pid, "exibicoes": lote})
     assert resposta.get_json() == {"recebidos": 5, "gravados": 2}
     tv.post(f"/api/tela/{tela['codigo']}/pulso", json={"exibicoes": [registro]})  # reenvio
@@ -364,3 +372,103 @@ def test_letreiro_proprio_por_propaganda(logado):
                       follow_redirects=True)
     assert "Escreva o texto do letreiro" in resposta.get_data(as_text=True)
     assert "Letreiro próprio: “Promo”" in logado.get("/").get_data(as_text=True)
+
+
+# ---------------------------------------------------------------------------
+# Conectar a TV pelo QR code (/tela)
+# ---------------------------------------------------------------------------
+
+def _codigo_da_tv(tv):
+    return re.search(r'<p class="relogio">([A-Z0-9]{6})</p>', tv.get("/tela").get_data(as_text=True)).group(1)
+
+
+def test_tv_se_conecta_pelo_qr_code(logado):
+    postar(logado, "/telas/nova", {"nome": "Vitrine"}, pagina="/telas")
+    tela = consultar(logado, "SELECT * FROM telas WHERE nome = 'Vitrine'")[0]
+    tv = logado.application.test_client()
+
+    # Tela nova: o endereço sozinho não funciona; a TV vai para a página do QR code.
+    assert tv.get(f"/tela/{tela['codigo']}").headers["Location"].endswith("/tela")
+    pagina = tv.get("/tela").get_data(as_text=True)
+    assert "data:image/svg+xml" in pagina
+    codigo = _codigo_da_tv(tv)
+    assert tv.get("/api/tela/conexao").get_json() == {"pronto": False}
+
+    # O celular lê o QR: aparece a lista de telas da loja.
+    assert "Vitrine" in logado.get(f"/tela/parear/{codigo}").get_data(as_text=True)
+    postar(logado, f"/tela/parear/{codigo}", {"tela_id": str(tela["id"])}, pagina=f"/tela/parear/{codigo}")
+    resposta = tv.get("/api/tela/conexao").get_json()
+    assert resposta == {"pronto": True, "url": f"/tela/{tela['codigo']}"}
+    assert tv.get(f"/tela/{tela['codigo']}").status_code == 200
+    assert tv.get(f"/api/tela/{tela['codigo']}/playlist").status_code == 200
+    # O código já foi usado.
+    assert "venceu" in postar(logado, f"/tela/parear/{codigo}", {"tela_id": str(tela["id"])},
+                              pagina="/telas", follow_redirects=True).get_data(as_text=True)
+
+    # Outra TV conectada à mesma tela: a anterior deixa de funcionar.
+    outra = conectar_tv(logado, tela["id"], tv=logado.application.test_client())
+    assert outra.get(f"/api/tela/{tela['codigo']}/playlist").status_code == 200
+    assert tv.get(f"/api/tela/{tela['codigo']}/playlist").status_code == 403
+
+    # Desconectar pelo painel: a TV volta para o QR code.
+    postar(logado, f"/telas/{tela['id']}/desconectar-aparelho", pagina="/telas")
+    assert outra.get(f"/api/tela/{tela['codigo']}/playlist").get_json()["conectar"] == "/tela"
+
+
+def test_codigo_digitado_e_codigo_vencido(logado, monkeypatch):
+    postar(logado, "/telas/nova", {"nome": "Caixa"}, pagina="/telas")
+    tela = consultar(logado, "SELECT * FROM telas WHERE nome = 'Caixa'")[0]
+    tv = logado.application.test_client()
+    codigo = _codigo_da_tv(tv)
+    # Sem câmera: o administrador digita o código (minúsculo, com espaço) em Telas.
+    resposta = postar(logado, "/telas/conectar", {"codigo": f" {codigo[:3].lower()} {codigo[3:]} "}, pagina="/telas")
+    assert resposta.headers["Location"].endswith(f"/tela/parear/{codigo}")
+
+    # Depois de 10 minutos o código vence: a TV recarrega e mostra outro.
+    with logado.application.app_context():
+        conexao = db.obter()
+        with conexao:
+            conexao.execute("UPDATE pareamentos SET criado_em = '2000-01-01 00:00:00'")
+    assert "venceu" in logado.get(f"/tela/parear/{codigo}", follow_redirects=True).get_data(as_text=True)
+    assert tv.get("/api/tela/conexao").status_code == 410
+    assert "venceu ou não existe" in logado.get("/tela/parear/XXXXXX", follow_redirects=True).get_data(as_text=True)
+    assert consultar(logado, "SELECT aparelho_hash FROM telas WHERE id = ?", tela["id"])[0][0] is None
+
+
+def test_telas_antigas_aceitam_a_tv_que_ja_usa_o_endereco(logado):
+    postar(logado, "/telas/nova", {"nome": "Antiga"}, pagina="/telas")
+    with logado.application.app_context():
+        conexao = db.obter()
+        with conexao:  # como as telas que existiam antes do pareamento
+            conexao.execute("UPDATE telas SET aceita_link = 1")
+    codigo = consultar(logado, "SELECT codigo FROM telas")[0][0]
+    tv, outro = logado.application.test_client(), logado.application.test_client()
+    assert tv.get(f"/api/tela/{codigo}/playlist").status_code == 200   # primeira TV: conecta sozinha
+    assert tv.get(f"/api/tela/{codigo}/playlist").status_code == 200
+    assert outro.get(f"/api/tela/{codigo}/playlist").status_code == 403
+
+
+def test_so_admin_e_editor_conectam_e_so_telas_da_propria_loja(logado):
+    from propagandas import auth
+    postar(logado, "/telas/nova", {"nome": "Do dono"}, pagina="/telas")
+    tela_do_dono = consultar(logado, "SELECT id FROM telas")[0][0]
+    postar(logado, "/plataforma/empresas/nova", {"nome": "Outra", "usuario": "dono2", "senha": "senha-forte-123"},
+           pagina="/plataforma/")
+    outra_id = consultar(logado, "SELECT id FROM empresas WHERE nome = 'Outra'")[0][0]
+    with logado.application.app_context():
+        auth.criar_usuario(db.obter(), 1, "caixa1", "senha-forte-123", "caixa")
+        auth.criar_usuario(db.obter(), 1, "editor1", "senha-forte-123", "editor")
+
+    def entrar(usuario):
+        cliente = logado.application.test_client()
+        postar(cliente, "/login", {"usuario": usuario, "senha": "senha-forte-123"}, pagina="/login")
+        return cliente
+
+    codigo = _codigo_da_tv(logado.application.test_client())
+    assert entrar("caixa1").get(f"/tela/parear/{codigo}").status_code == 403
+    assert "Do dono" in entrar("editor1").get(f"/tela/parear/{codigo}").get_data(as_text=True)
+    dono2 = entrar("dono2")
+    assert "Do dono" not in dono2.get(f"/tela/parear/{codigo}").get_data(as_text=True)
+    postar(dono2, f"/tela/parear/{codigo}", {"tela_id": str(tela_do_dono)}, pagina=f"/tela/parear/{codigo}")
+    assert consultar(logado, "SELECT aparelho_hash FROM telas WHERE id = ?", tela_do_dono)[0][0] is None
+    assert outra_id

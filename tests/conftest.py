@@ -64,3 +64,13 @@ def enviar(cliente, nome, conteudo, duracao=7):
 def logado(cliente):
     configurar_admin(cliente)
     return cliente
+
+
+def conectar_tv(admin, tela_id, tv=None):
+    """Conecta um aparelho (tv; por padrão o próprio cliente do admin) à tela, como na loja:
+    a TV abre /tela, o celular de quem administra lê o código e escolhe a tela."""
+    tv = tv or admin
+    codigo = re.search(r'<p class="relogio">([A-Z0-9]{6})</p>', tv.get("/tela").get_data(as_text=True)).group(1)
+    postar(admin, f"/tela/parear/{codigo}", {"tela_id": str(tela_id)}, pagina=f"/tela/parear/{codigo}")
+    assert tv.get("/api/tela/conexao").get_json()["pronto"]
+    return tv

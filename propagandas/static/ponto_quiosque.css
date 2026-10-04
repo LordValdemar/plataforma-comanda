@@ -8,3 +8,4 @@ h1 { margin: 0 0 4px; font-size: clamp(1.4rem, 4vw, 2.4rem); }
 .aviso { color: #94a3b8; margin: 6px 0 0; }
 .aviso.erro { color: #fca5a5; }
 .aviso.ok { color: #86efac; font-weight: 700; }
+.qr-grande { width: min(62vmin, 520px); height: min(62vmin, 520px); image-rendering: pixelated; }

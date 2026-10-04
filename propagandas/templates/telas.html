@@ -19,7 +19,22 @@
     </div>
     <div class="fixo"><button type="submit">Cadastrar</button></div>
   </form>
-  <p class="dica u-mb0">Cada tela recebe um endereço próprio. Abra esse endereço no navegador da TV. O painel passa a mostrar se ela está ligada, o que está exibindo e quantas vezes cada propaganda passou.</p>
+  <p class="dica u-mb0">Depois de cadastrar, conecte a TV (abaixo). O painel passa a mostrar se ela está ligada, o que está exibindo e quantas vezes cada propaganda passou.</p>
+</section>
+
+<section>
+  <h2>Conectar uma TV</h2>
+  <ol class="passos">
+    <li>No navegador da TV, abra <span class="endereco">{{ url_for('exibicao.conectar', _external=True) }}</span></li>
+    <li>Com o celular (entrando como administrador ou editor), leia o QR code que aparece na TV e escolha a tela.</li>
+    <li>A TV começa a mostrar as propagandas e fica presa a essa tela: o endereço não funciona em outro aparelho.</li>
+  </ol>
+  <form action="{{ url_for('telas.conectar_por_codigo') }}" method="post" class="linha">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="codigo-tv">Sem câmera? Digite o código que aparece na TV</label>
+      <input type="text" id="codigo-tv" name="codigo" maxlength="6" placeholder="Ex.: K7M2X9" autocapitalize="characters" autocomplete="off"></div>
+    <div class="fixo"><button type="submit" class="secundario">Conectar</button></div>
+  </form>
 </section>
 
 <section>
@@ -48,7 +63,11 @@
         {% if t.exibindo and online[t.id] %}▶ Exibindo agora: <strong>{{ t.exibindo }}</strong> · {% endif %}
         {% if t.ultimo_ip %}IP {{ t.ultimo_ip }}{% endif %}
       </div>
-      <p class="endereco">{{ endereco }}</p>
+      <div class="resumo">
+        {% if t.aparelho_hash %}📺 Aparelho conectado{% if t.pareada_em %} desde {{ t.pareada_em|data_local }}{% endif %}
+        {% elif t.aceita_link %}📺 Aguardando a TV que já usa o endereço antigo (ela se conecta sozinha)
+        {% else %}<span class="selo alerta">Nenhum aparelho conectado</span> Na TV, abra o endereço /tela e leia o QR code.{% endif %}
+      </div>
       <details>
         <summary>Editar</summary>
         <form action="{{ url_for('telas.atualizar', tela_id=t.id) }}" method="post" class="u-mt8">
@@ -69,7 +88,14 @@
           </div>
           <button type="submit">Salvar</button>
         </form>
+        <p class="dica">Endereço desta tela (só funciona no aparelho conectado): <span class="endereco">{{ endereco }}</span></p>
         <div class="acoes">
+          {% if t.aparelho_hash %}
+          <form action="{{ url_for('telas.desconectar_aparelho', tela_id=t.id) }}" method="post" data-confirmar="Desconectar o aparelho da tela {{ t.nome }}? A TV volta para a página do QR code.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="secundario">Desconectar aparelho</button>
+          </form>
+          {% endif %}
           <form action="{{ url_for('telas.trocar_codigo', tela_id=t.id) }}" method="post" data-confirmar="Gerar um novo endereço com o nome atual da tela? O endereço atual vai parar de funcionar e você terá que atualizar a TV.">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="secundario" title="O endereço novo usa o nome atual da tela, ex.: /tela/vitrine-k7m2x9">Gerar novo endereço</button>

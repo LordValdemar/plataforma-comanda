@@ -31,6 +31,12 @@ const preCarregados = new Set();
 async function atualizarLista() {
   try {
     const resposta = await fetch(URL_PLAYLIST, { cache: "no-store" });
+    if (resposta.status === 403) {
+      // Este aparelho não está (mais) conectado à tela: volta para a página do QR code.
+      const dados = await resposta.json().catch(() => ({}));
+      location.href = dados.conectar || "/tela";
+      return false;
+    }
     if (!resposta.ok) throw new Error("HTTP " + resposta.status);
     const dados = await resposta.json();
     itens = dados.itens;
