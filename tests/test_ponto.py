@@ -324,3 +324,33 @@ def test_dispensar_o_qr_volta_ao_botao(logado, app):
     post(joao, "/ponto/entrada")
     post(joao, "/ponto/saida")
     assert consultar(app, "SELECT motivo_saida FROM ponto_registros")[0][0] == "saída"
+
+
+def test_codigo_digitado_quando_a_camera_nao_abre(logado, app):
+    ligar_ponto(logado)
+    pagina = logado.get("/ponto/equipe").get_data(as_text=True)
+    api = re.search(r'<p class="endereco">http://localhost(/ponto/quiosque/[^<]+)</p>', pagina).group(1)
+    api = api.replace("/ponto/quiosque/", "/api/ponto/quiosque/")
+    criar_pessoa(app, "joao")
+    criar_pessoa(app, "maria")
+    joao, maria = entrar(app, "joao"), entrar(app, "maria")
+    assert "Digite o código de 6 letras" in joao.get("/ponto").get_data(as_text=True)
+
+    codigo = app.test_client().get(api).get_json()["codigo"]  # o que aparece embaixo do QR
+    assert len(codigo) == 6
+    resposta = post(joao, "/ponto/codigo", {"codigo": codigo.lower()}, follow_redirects=True)
+    assert "QR code lido" in resposta.get_data(as_text=True)
+    post(joao, "/ponto/entrada")
+    assert consultar(app, "SELECT COUNT(*) FROM ponto_registros WHERE saida IS NULL")[0][0] == 1
+
+    # Usado uma vez, o código troca: o mesmo não serve para outra pessoa.
+    assert "Código errado" in post(maria, "/ponto/codigo", {"codigo": codigo}, follow_redirects=True).get_data(as_text=True)
+    assert app.test_client().get(api).get_json()["codigo"] != codigo
+
+    # Quem tenta adivinhar é bloqueado depois de alguns erros.
+    for _ in range(ponto.MAX_CODIGOS_ERRADOS):
+        post(maria, "/ponto/codigo", {"codigo": "AAAAAA"})
+    certo = app.test_client().get(api).get_json()["codigo"]
+    assert "Muitos códigos errados" in post(maria, "/ponto/codigo", {"codigo": certo},
+                                            follow_redirects=True).get_data(as_text=True)
+    ponto._codigos_errados.clear()

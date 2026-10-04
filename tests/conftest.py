@@ -17,9 +17,13 @@ MP4 = b"\x00\x00\x00\x18ftypisom" + b"\x00" * 60
 
 @pytest.fixture(autouse=True)
 def limpar_bloqueios():
+    from propagandas import ponto
+
     auth._tentativas.clear()
+    ponto._codigos_errados.clear()
     yield
     auth._tentativas.clear()
+    ponto._codigos_errados.clear()
 
 
 @pytest.fixture

@@ -39,7 +39,7 @@ SAIDA_SEM_QR = "saída sem QR code"
 
 # O que quem está sem ponto aberto ainda pode abrir.
 LIBERADAS_SEM_PONTO = {
-    "ponto.meu", "ponto.entrada", "ponto.saida", "ponto.ler_qr", "ponto.quiosque", "ponto.quiosque_api", "auth.sair", "auth.login", "auth.minha_conta", "auth.minha_senha",
+    "ponto.meu", "ponto.entrada", "ponto.saida", "ponto.ler_qr", "ponto.digitar_codigo", "ponto.quiosque", "ponto.quiosque_api", "auth.sair", "auth.login", "auth.minha_conta", "auth.minha_senha",
     "auth.ativar_2fa", "auth.desativar_2fa_proprio", "static", "legal.privacidade", "legal.termos", "legal.security_txt",
 }
 
@@ -91,6 +91,49 @@ def token_qr(empresa_id, agora=None):
     geracao = geracao_qr(empresa_id)
     janela = int((agora or time.time()) // QR_TROCA_SEGUNDOS)
     return f"{geracao}-{janela}-{_assinatura(empresa_id, geracao, janela)}"
+
+
+LETRAS_DO_CODIGO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # sem 0/O, 1/I/L: fácil de digitar
+TAMANHO_DO_CODIGO = 6
+MAX_CODIGOS_ERRADOS = 5          # por pessoa, a cada 10 minutos (contra quem tenta adivinhar)
+_codigos_errados = {}
+
+
+def codigo_digitavel(empresa_id, geracao, janela):
+    """Versão curta do QR, para digitar quando a câmera não abre. Muda junto com o QR."""
+    numero = int(hmac.new(_segredo(empresa_id).encode(), f"codigo:{empresa_id}:{geracao}:{janela}".encode(),
+                          hashlib.sha256).hexdigest(), 16)
+    letras = []
+    for _ in range(TAMANHO_DO_CODIGO):
+        numero, resto = divmod(numero, len(LETRAS_DO_CODIGO))
+        letras.append(LETRAS_DO_CODIGO[resto])
+    return "".join(letras)
+
+
+def token_do_codigo(empresa_id, codigo, agora=None):
+    """O token do QR que corresponde ao código digitado (o atual ou o que acabou de sair da tela)."""
+    codigo = "".join(c for c in (codigo or "").upper() if c in LETRAS_DO_CODIGO)
+    if len(codigo) != TAMANHO_DO_CODIGO:
+        return None
+    agora = agora or time.time()
+    geracao = geracao_qr(empresa_id)
+    for janela in (int(agora // QR_TROCA_SEGUNDOS), int(agora // QR_TROCA_SEGUNDOS) - 1):
+        if hmac.compare_digest(codigo, codigo_digitavel(empresa_id, geracao, janela)):
+            token = f"{geracao}-{janela}-{_assinatura(empresa_id, geracao, janela)}"
+            return token if token_valido(empresa_id, token, agora) else None
+    return None
+
+
+def _errou_codigo(usuario_id):
+    agora = time.time()
+    recentes = [t for t in _codigos_errados.get(usuario_id, []) if agora - t < 600]
+    recentes.append(agora)
+    _codigos_errados[usuario_id] = recentes
+
+
+def _codigo_bloqueado(usuario_id):
+    agora = time.time()
+    return len([t for t in _codigos_errados.get(usuario_id, []) if agora - t < 600]) >= MAX_CODIGOS_ERRADOS
 
 
 def _ler_token(token):
@@ -323,13 +366,33 @@ def saida():
     return redirect(url_for("auth.login"))
 
 
+@bp.route("/ponto/codigo", methods=["POST"])
+@login_obrigatorio()
+def digitar_codigo():
+    """Para quando a câmera não abre: a pessoa digita o código curto que aparece embaixo do QR."""
+    if _codigo_bloqueado(g.usuario["id"]):
+        flash("Muitos códigos errados. Espere alguns minutos ou leia o QR code.", "erro")
+        return redirect(url_for("ponto.meu"))
+    token = token_do_codigo(g.empresa_id, request.form.get("codigo"))
+    if token is None:
+        _errou_codigo(g.usuario["id"])
+        flash("Código errado ou vencido. Digite o código que está agora na tela do ponto.", "erro")
+        return redirect(url_for("ponto.meu"))
+    return _confirmar_presenca(token)
+
+
 @bp.route("/ponto/qr/<slug>/<token>")
 @login_obrigatorio()
 def ler_qr(slug, token):
     """Endereço do QR code da loja: o celular abre, e a presença fica confirmada por alguns minutos."""
     if slug != g.usuario["empresa_slug"]:
         flash("Este QR code é de outra loja.", "erro")
-    elif not usar_token(g.empresa_id, token):
+        return redirect(url_for("ponto.meu"))
+    return _confirmar_presenca(token)
+
+
+def _confirmar_presenca(token):
+    if not usar_token(g.empresa_id, token):
         if situacao_token(g.empresa_id, token) == "usado":
             flash("Este QR code já foi usado por outra pessoa. Leia o código novo que está na tela da loja.", "erro")
         else:
@@ -369,6 +432,8 @@ def quiosque_api(codigo):
         resposta = {"ativo": True, "versao": versao,
                     "troca_em": QR_TROCA_SEGUNDOS - int(time.time()) % QR_TROCA_SEGUNDOS}
         if request.args.get("versao") != versao:
+            geracao, janela, _ = _ler_token(token)
+            resposta["codigo"] = codigo_digitavel(empresa_id, geracao, janela)
             slug = db.obter().execute("SELECT slug FROM empresas WHERE id = ?", (empresa_id,)).fetchone()["slug"]
             endereco = url_for("ponto.ler_qr", slug=slug, token=token, _external=True)
             resposta["qr"] = segno.make(endereco, error="m").svg_data_uri(scale=10, border=2)
