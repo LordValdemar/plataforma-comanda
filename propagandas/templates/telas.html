@@ -29,6 +29,7 @@
     <li>Com o celular (entrando como administrador ou editor), leia o QR code que aparece na TV e escolha a tela.</li>
     <li>A TV começa a mostrar as propagandas e fica presa a essa tela: o endereço não funciona em outro aparelho.</li>
   </ol>
+  <p class="dica">Um computador com mais de uma TV (ou mais de um monitor)? Para conectar mais uma tela no mesmo navegador, abra <span class="endereco">{{ url_for('exibicao.conectar_nova', _external=True) }}</span> numa nova janela. Depois, deixe cada janela no endereço da sua tela (em Editar, abaixo).</p>
   <form action="{{ url_for('telas.conectar_por_codigo') }}" method="post" class="linha">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div><label for="codigo-tv">Sem câmera? Digite o código que aparece na TV</label>

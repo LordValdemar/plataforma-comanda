@@ -479,3 +479,29 @@ def test_so_admin_e_editor_conectam_e_so_telas_da_propria_loja(logado):
     postar(dono2, f"/tela/parear/{codigo}", {"tela_id": str(tela_do_dono)}, pagina=f"/tela/parear/{codigo}")
     assert consultar(logado, "SELECT aparelho_hash FROM telas WHERE id = ?", tela_do_dono)[0][0] is None
     assert outra_id
+
+
+def test_varias_telas_no_mesmo_navegador(logado):
+    for nome in ("Monitor 1", "Monitor 2"):
+        postar(logado, "/telas/nova", {"nome": nome}, pagina="/telas")
+    um, dois = consultar(logado, "SELECT * FROM telas ORDER BY nome")
+    pc = logado.application.test_client()
+
+    def conectar(caminho, tela):
+        codigo = re.search(r'<p class="relogio">([A-Z0-9]{6})</p>', pc.get(caminho).get_data(as_text=True)).group(1)
+        postar(logado, f"/tela/parear/{codigo}", {"tela_id": str(tela["id"])}, pagina=f"/tela/parear/{codigo}")
+        assert pc.get("/api/tela/conexao").get_json()["pronto"]
+
+    conectar("/tela", um)
+    assert pc.get("/tela").headers["Location"].endswith(f"/tela/{um['codigo']}")   # só uma: vai direto
+    # /tela/nova mostra o QR mesmo com uma tela já conectada.
+    pagina = pc.get("/tela/nova").get_data(as_text=True)
+    assert "Este navegador já mostra" in pagina and "Monitor 1" in pagina
+    conectar("/tela/nova", dois)
+
+    # Com duas, /tela mostra a lista; cada janela usa o endereço da sua tela.
+    pagina = pc.get("/tela").get_data(as_text=True)
+    assert "Qual tela esta janela vai mostrar?" in pagina and "Monitor 1" in pagina and "Monitor 2" in pagina
+    for tela in (um, dois):
+        assert pc.get(f"/tela/{tela['codigo']}").status_code == 200
+        assert pc.get(f"/api/tela/{tela['codigo']}/playlist").status_code == 200

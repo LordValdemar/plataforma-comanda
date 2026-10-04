@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Escolher a tela · {{ config.NOME_PLATAFORMA }}</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{{ url_for('static', filename='ponto_quiosque.css') }}">
+</head>
+<body>
+  <main>
+    <h1>Qual tela esta janela vai mostrar?</h1>
+    <p class="instrucao">Este navegador está conectado a mais de uma tela.</p>
+    <div class="lista-telas-tv">
+      {% for t in telas %}
+        <a class="botao-tela" href="{{ url_for('exibicao.tela', codigo=t.codigo) }}">{{ t.nome }}</a>
+      {% endfor %}
+    </div>
+    <p class="aviso">Dica: para abrir sempre a mesma tela nesta janela, use o endereço dela
+      (por exemplo, {{ url_for('exibicao.tela', codigo=telas[0].codigo, _external=True) }}).</p>
+    <p class="aviso"><a href="{{ url_for('exibicao.conectar_nova') }}">Conectar mais uma tela neste navegador</a></p>
+  </main>
+</body>
+</html>

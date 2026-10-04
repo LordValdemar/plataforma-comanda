@@ -15,6 +15,9 @@
     <div class="quadro"><img src="{{ qr }}" alt="QR code para conectar esta TV" class="qr-grande"></div>
     <p class="relogio">{{ codigo }}</p>
     <p id="aviso" class="aviso">Sem câmera? No painel, em Telas, digite o código acima.</p>
+    {% if conectadas %}
+      <p class="aviso">Este navegador já mostra: {% for t in conectadas %}<a href="{{ url_for('exibicao.tela', codigo=t.codigo) }}">{{ t.nome }}</a>{{ ", " if not loop.last }}{% endfor %}.</p>
+    {% endif %}
   </main>
   <script src="{{ url_for('static', filename='tela_conectar.js') }}"></script>
 </body>

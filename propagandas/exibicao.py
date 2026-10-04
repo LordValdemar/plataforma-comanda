@@ -156,20 +156,39 @@ def conectar_aparelho(conexao, pedido, tela):
         conexao.execute("UPDATE pareamentos SET tela_id = ? WHERE id = ?", (tela["id"], pedido["id"]))
 
 
+def telas_deste_aparelho(conexao):
+    """Telas cujo crachá está guardado neste navegador (um computador pode mostrar várias)."""
+    prefixo = COOKIE_APARELHO.format("")
+    telas = []
+    for nome, token in request.cookies.items():
+        if nome.startswith(prefixo) and nome[len(prefixo):].isdigit() and token:
+            tela = conexao.execute("SELECT * FROM telas WHERE id = ?", (int(nome[len(prefixo):]),)).fetchone()
+            if tela and tela["aparelho_hash"] and hmac.compare_digest(_hash(token), tela["aparelho_hash"]):
+                telas.append(tela)
+    return sorted(telas, key=lambda t: t["nome"].lower())
+
+
 @bp.route("/tela")
 def conectar():
     """Endereço único para as TVs: mostra um QR code; quem administra lê e escolhe a tela.
 
     TV já conectada (tem o crachá de uma tela) vai direto para as propagandas dela: o atalho
-    de quiosque da TV pode abrir sempre /tela, mesmo depois de reiniciar.
+    de quiosque da TV pode abrir sempre /tela, mesmo depois de reiniciar. Com mais de uma tela
+    conectada no mesmo navegador, mostra a lista para escolher.
     """
     conexao = db.obter()
-    prefixo = COOKIE_APARELHO.format("")
-    for nome, token in request.cookies.items():
-        if nome.startswith(prefixo) and nome[len(prefixo):].isdigit() and token:
-            tela = conexao.execute("SELECT * FROM telas WHERE id = ?", (int(nome[len(prefixo):]),)).fetchone()
-            if tela and tela["aparelho_hash"] and hmac.compare_digest(_hash(token), tela["aparelho_hash"]):
-                return redirect(url_for("exibicao.tela", codigo=tela["codigo"]))
+    conectadas = telas_deste_aparelho(conexao)
+    if len(conectadas) == 1:
+        return redirect(url_for("exibicao.tela", codigo=conectadas[0]["codigo"]))
+    if conectadas:
+        return render_template("tela_escolher.html", telas=conectadas)
+    return conectar_nova()
+
+
+@bp.route("/tela/nova")
+def conectar_nova():
+    """Mostra o QR code mesmo num navegador que já tem telas: para conectar mais uma."""
+    conexao = db.obter()
     agora = agenda.agora_utc()
     with conexao:
         conexao.execute("DELETE FROM pareamentos WHERE criado_em < ?",
@@ -186,7 +205,7 @@ def conectar():
                         (codigo, _hash(segredo), agenda.para_texto_utc(agora)))
     endereco = url_for("telas.parear", codigo=codigo, _external=True)
     resposta = current_app.make_response(render_template(
-        "tela_conectar.html", codigo=codigo, endereco=endereco,
+        "tela_conectar.html", codigo=codigo, endereco=endereco, conectadas=telas_deste_aparelho(conexao),
         qr=segno.make(endereco, error="m").svg_data_uri(scale=10, border=2), validade=PEDIDO_VALIDADE,
     ))
     resposta.set_cookie(COOKIE_PEDIDO, segredo, max_age=PEDIDO_VALIDADE, httponly=True, samesite="Lax",

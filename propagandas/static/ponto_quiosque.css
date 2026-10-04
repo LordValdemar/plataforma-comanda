@@ -9,3 +9,6 @@ h1 { margin: 0 0 4px; font-size: clamp(1.4rem, 4vw, 2.4rem); }
 .aviso.erro { color: #fca5a5; }
 .aviso.ok { color: #86efac; font-weight: 700; }
 .qr-grande { width: min(62vmin, 520px); height: min(62vmin, 520px); image-rendering: pixelated; }
+.lista-telas-tv { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin: 18px 0; }
+.botao-tela { background: #2f6fed; color: #fff; text-decoration: none; font-size: clamp(1.2rem, 3vw, 2rem); padding: 18px 30px; border-radius: 12px; }
+.aviso a { color: #93c5fd; }
