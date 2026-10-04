@@ -4,9 +4,11 @@ from datetime import timedelta
 
 from flask import Blueprint, abort, g, render_template, request
 
+from src.domain.comanda import ErroComanda
+from src.domain.erros import NaoEncontrado
+
 from .. import db, modulos
-from .base import exigir_funcao
-from .comandas import ErroComanda, mudar_status_item
+from .base import exigir_funcao, servico_de_comandas
 from .formatos import agora_utc, hora, minutos_desde, para_texto_utc
 
 bp = Blueprint("comanda_cozinha", __name__, url_prefix="/comanda")
@@ -87,15 +89,14 @@ def api_pedidos():
 @bp.route("/api/cozinha/itens/<int:item_id>", methods=["POST"])
 @exigir_funcao("cozinha")
 def api_mudar(item_id):
-    conexao = db.obter()
-    item = conexao.execute("SELECT * FROM cmd_itens WHERE id = ? AND empresa_id = ?", (item_id, g.empresa_id)).fetchone()
-    if item is None:
-        abort(404)
     novo = request.form.get("status", "")
-    if novo not in SITUACOES:
-        return {"erro": "situação inválida"}, 400
     try:
-        mudar_status_item(conexao, item, novo)
+        if novo not in SITUACOES:
+            servico_de_comandas().comanda_do_item_ou_erro(item_id)  # item de outra loja: 404 antes do 400
+            return {"erro": "situação inválida"}, 400
+        servico_de_comandas().mudar_situacao(item_id, novo)
+    except NaoEncontrado:
+        abort(404)
     except ErroComanda as erro:
         return {"erro": str(erro)}, 409
     return {"status": novo}
@@ -105,11 +106,4 @@ def api_mudar(item_id):
 @exigir_funcao("cozinha")
 def api_tudo_pronto(comanda_id):
     """Marca como prontos todos os itens da comanda que ainda estão na cozinha."""
-    conexao = db.obter()
-    with conexao:
-        alterados = conexao.execute(
-            "UPDATE cmd_itens SET status = 'pronto', atualizado_em = ? "
-            "WHERE empresa_id = ? AND comanda_id = ? AND vai_cozinha = 1 AND status IN ('pendente', 'preparando')",
-            (para_texto_utc(agora_utc()), g.empresa_id, comanda_id),
-        ).rowcount
-    return {"alterados": alterados}
+    return {"alterados": servico_de_comandas().marcar_tudo_pronto(comanda_id)}

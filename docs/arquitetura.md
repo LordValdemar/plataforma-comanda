@@ -27,6 +27,19 @@ Regras:
 | Etapa | Situação |
 |---|---|
 | 1. Estrutura `src/` e configuração | feita |
-| 2. Comanda (dinheiro, itens, pagamentos, fechamento) | em andamento |
+| 2. Comanda (dinheiro, itens, pagamentos, fechamento) | feita |
 | 3. Permissões e autorizações, ponto, painel de propagandas | a fazer |
 | 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | a fazer |
+
+## Comanda
+
+- `src/domain/dinheiro.py`: centavos ↔ texto, porcentagem com arredondamento comercial.
+- `src/domain/comanda/entidades.py`: `Comanda`, `Item`, `Pagamento`, `Totais` e as regras (conta, troco,
+  fechamento, cancelamento). O troco nunca chega a R$ 200,00 (a maior cédula): valor digitado errado é recusado.
+- `src/domain/comanda/servico.py`: os casos de uso. Os que mexem em dinheiro rodam numa transação travada.
+- `src/domain/comanda/repositorio.py`: o que o domínio precisa do banco (contrato).
+- `src/infrastructure/sqlite/comandas.py`: o contrato implementado no SQLite, sempre restrito a uma loja.
+- `propagandas/comanda/comandas.py`: as rotas HTTP; leem o formulário, conferem permissões e chamam o serviço.
+
+Testes: `tests/unidade` (regras, sem banco, em milissegundos) e `tests/test_comanda_repositorio.py`
+(banco de verdade: 8 caixas pagando a mesma conta ao mesmo tempo, erro no meio da gravação, isolamento entre lojas).

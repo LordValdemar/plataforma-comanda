@@ -1,4 +1,4 @@
-"""Peças comuns do módulo Comanda: permissão por papel, configurações e histórico de ações.
+"""Peças comuns do módulo Comanda (porta de entrada HTTP): permissão por papel, configurações e o serviço.
 
 Toda consulta do módulo filtra pela empresa do usuário logado (g.empresa_id): uma loja nunca
 vê nem altera os dados de outra.
@@ -8,8 +8,21 @@ from functools import wraps
 
 from flask import abort, g, request
 
+from src.domain.comanda import Ator, ServicoDeComandas
+from src.infrastructure.sqlite import RepositorioDeComandasSQLite
+
 from .. import db, permissoes
 from ..auth import login_obrigatorio
+
+
+def servico_de_comandas():
+    """Os casos de uso da Comanda, gravando no banco da loja de quem está logado."""
+    return ServicoDeComandas(RepositorioDeComandasSQLite(db.obter(), g.empresa_id))
+
+
+def ator_atual():
+    """Quem faz a operação (para o histórico). Chame depois de conferir a permissão: aí já se sabe se foi autorizado."""
+    return Ator(usuario_id=g.usuario["id"] if g.get("usuario") is not None else None, autorizado_por=g.get("autorizado_por"))
 
 
 def papel_exigido(*papeis):
@@ -67,26 +80,3 @@ def ler_config(chave, padrao=""):
 
 def gravar_config(chave, valor):
     db.gravar_config(g.empresa_id, "comanda." + chave, str(valor))
-
-
-def _com_autorizacao(detalhe):
-    """Quem fez com autorização por QR code: o nome de quem autorizou fica no histórico."""
-    if not g.get("autorizado_por"):
-        return detalhe
-    return f"{detalhe} (autorizado por {g.autorizado_por})" if detalhe else f"autorizado por {g.autorizado_por}"
-
-
-def anotar_autorizacao(conexao, acao, detalhe, comanda_id):
-    """Registra no histórico uma ação feita com autorização (as outras não precisam de registro extra)."""
-    if g.get("autorizado_por"):
-        with conexao:
-            auditar(conexao, acao, detalhe, comanda_id)
-
-
-def auditar(conexao, acao, detalhe="", comanda_id=None):
-    """Registra quem fez o quê (cancelamentos, descontos...). Chame dentro da transação da mudança."""
-    conexao.execute(
-        "INSERT INTO cmd_auditoria (empresa_id, usuario_id, comanda_id, acao, detalhe) VALUES (?, ?, ?, ?, ?)",
-        (g.empresa_id, g.usuario["id"] if g.usuario is not None else None, comanda_id, acao,
-         _com_autorizacao(detalhe)),
-    )
