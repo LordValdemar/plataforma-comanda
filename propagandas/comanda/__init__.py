@@ -15,4 +15,5 @@ def registrar(app):
     app.jinja_env.globals["pode_fechar_conta"] = pode_fechar_conta
     app.jinja_env.filters["data_hora"] = formatos.data_hora
     app.jinja_env.filters["hora"] = formatos.hora
+    app.jinja_env.filters["data_extenso"] = formatos.data_extenso
     app.jinja_env.filters["minutos"] = formatos.minutos_desde
