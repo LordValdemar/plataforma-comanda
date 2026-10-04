@@ -164,6 +164,10 @@ def enviar():
     duracao = ler_duracao(request.form.get("duracao"))
     pasta = current_app.config["PASTA_MIDIA"]
     enviados = 0
+    # Onde as novas propagandas aparecem: escolhido no envio. Sem nada marcado, em nenhuma
+    # TV (ficam guardadas até alguém escolher as telas).
+    para_todas = request.form.get("destino") == "todas"
+    telas, grupos = (set(), set()) if para_todas else ler_destinos(conexao, request.form)
 
     for arquivo in request.files.getlist("arquivos"):
         if not arquivo or not arquivo.filename:
@@ -189,12 +193,13 @@ def enviar():
             continue
         try:
             with conexao:
-                conexao.execute(
-                    "INSERT INTO propagandas (empresa_id, nome, arquivo, tipo, tamanho, duracao, posicao) "
-                    "VALUES (?, ?, ?, ?, ?, ?, "
+                cursor = conexao.execute(
+                    "INSERT INTO propagandas (empresa_id, nome, arquivo, tipo, tamanho, duracao, para_todas, posicao) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, "
                     "(SELECT COALESCE(MAX(posicao), 0) + 1 FROM propagandas WHERE empresa_id = ?))",
-                    (g.empresa_id, nome_original, nome_disco, tipo, tamanho, duracao, g.empresa_id),
+                    (g.empresa_id, nome_original, nome_disco, tipo, tamanho, duracao, 1 if para_todas else 0, g.empresa_id),
                 )
+                gravar_destinos(conexao, cursor.lastrowid, telas, grupos)
         except Exception:
             os.remove(caminho)
             raise
@@ -202,7 +207,11 @@ def enviar():
         log.info("“%s” enviou “%s” (%s)", g.usuario["usuario"], nome_original, nome_disco)
 
     if enviados:
-        flash(f"{enviados} propaganda(s) adicionada(s).", "ok")
+        if para_todas or telas or grupos:
+            flash(f"{enviados} propaganda(s) adicionada(s).", "ok")
+        else:
+            flash(f"{enviados} propaganda(s) adicionada(s), mas ainda sem tela: escolha onde vão aparecer "
+                  "(em Editar, ou marque várias e use “Telas e grupos”).", "ok")
     return redirect(url_for("painel.lista"))
 
 

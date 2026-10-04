@@ -52,10 +52,11 @@ def configurar_admin(cliente, usuario="admin", senha="senha-forte-123"):
     )
 
 
-def enviar(cliente, nome, conteudo, duracao=7):
+def enviar(cliente, nome, conteudo, duracao=7, destino="todas", **destinos):
+    """Envia uma propaganda. Os testes escolhem "Todas as telas" (o padrão do sistema é nenhuma)."""
     return postar(
         cliente, "/enviar",
-        {"duracao": str(duracao), "arquivos": (io.BytesIO(conteudo), nome)},
+        {"duracao": str(duracao), "arquivos": (io.BytesIO(conteudo), nome), "destino": destino, **destinos},
         content_type="multipart/form-data",
     )
 

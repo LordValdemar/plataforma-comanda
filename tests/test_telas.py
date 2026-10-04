@@ -505,3 +505,25 @@ def test_varias_telas_no_mesmo_navegador(logado):
     for tela in (um, dois):
         assert pc.get(f"/tela/{tela['codigo']}").status_code == 200
         assert pc.get(f"/api/tela/{tela['codigo']}/playlist").status_code == 200
+
+
+def test_propaganda_nova_nao_vai_para_nenhuma_tela_sem_escolher(logado):
+    sp = criar_grupo(logado, "SP")
+    tela_sp, outra = criar_tela(logado, "Loja SP", sp), criar_tela(logado, "Outra")
+
+    # Sem escolher nada: fica guardada, fora de todas as TVs.
+    resposta = enviar(logado, "sem-destino.png", PNG, destino="escolher")
+    assert "ainda sem tela" in logado.get(resposta.headers["Location"]).get_data(as_text=True)
+    pid = consultar(logado, "SELECT id FROM propagandas WHERE nome = 'sem-destino.png'")[0]["id"]
+    assert ids_na_tela(logado, tela_sp) == [] and ids_na_tela(logado, outra) == []
+    assert "Nenhuma tela: escolha um destino" in logado.get("/").get_data(as_text=True)
+
+    # Escolhendo o grupo no envio: aparece só nas telas dele.
+    enviar(logado, "so-sp.png", PNG, destino="escolher", grupos=[str(sp)])
+    so_sp = consultar(logado, "SELECT id FROM propagandas WHERE nome = 'so-sp.png'")[0]["id"]
+    assert ids_na_tela(logado, tela_sp) == [so_sp] and ids_na_tela(logado, outra) == []
+
+    # Um formulário sem o campo de destino também não espalha para todas.
+    postar(logado, "/enviar", {"duracao": "5", "arquivos": (io.BytesIO(PNG), "antigo.png")},
+           content_type="multipart/form-data")
+    assert ids_na_tela(logado, outra) == [] and pid not in ids_na_tela(logado, tela_sp)
