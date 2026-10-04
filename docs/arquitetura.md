@@ -36,6 +36,7 @@ Regras:
 | 5a. Cobrança e Asaas | feita |
 | 5b. Login e usuários | feita |
 | 6a. Cardápio da Comanda | feita |
+| 6b. Relatórios (vendas da Comanda e exibições do Painel) | feita |
 
 ## Comanda
 
@@ -104,6 +105,19 @@ TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a pont
   cozinha, fora do cardápio); `src/domain/ordem.py`: subir ou descer um item numa lista (também usado nas propagandas).
 - `src/infrastructure/sqlite/cardapio.py`: cmd_categorias e cmd_produtos; nome ou código repetido vira erro da regra.
 - `propagandas/comanda/cardapio.py`: as rotas.
+
+## Relatórios
+
+- `src/domain/periodo.py`: o período de/até lido da tela (invertido é trocado, longo demais é cortado);
+  também usado no relatório do ponto.
+- `src/domain/relatorios/vendas.py`: o resumo de vendas da Comanda (faturamento, ticket médio, taxa de serviço,
+  formas de pagamento, produtos, garçons, cancelados) e as linhas da planilha.
+- `src/domain/relatorios/exibicoes.py`: o resumo de exibições do Painel (por propaganda, tela e dia) e a planilha.
+- `src/infrastructure/sqlite/relatorios.py`: as consultas, sempre de uma loja só.
+- `propagandas/comanda/relatorios.py` e `propagandas/relatorios.py`: as rotas e o CSV (com BOM, para o Excel).
+
+Testes: `tests/unidade/test_relatorios_dominio.py` e `tests/test_relatorios_repositorio.py` (comanda antiga sem taxa
+gravada, isolamento entre lojas, o dia local com fuso).
 
 ## Cobrança e Asaas
 

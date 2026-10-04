@@ -367,8 +367,10 @@ def test_so_garcom_recebe_a_permissao_de_fechar(logado, app):
 
 
 def test_taxa_arredonda_meio_centavo_para_cima_e_relatorio_bate_com_o_cupom(logado, app):
-    from propagandas.comanda import formatos, relatorios
-    from propagandas.comanda.formatos import hoje_local
+    from propagandas.comanda import formatos
+    from propagandas.comanda.formatos import hoje_local, intervalo_utc
+    from src.domain.relatorios import RelatorioDeVendas
+    from src.infrastructure.sqlite import RepositorioDeVendasSQLite
 
     # Arredondamento comercial: o round() do Python daria 100 (meio para o par).
     assert formatos.porcentagem(1005, 10) == 101
@@ -386,8 +388,8 @@ def test_taxa_arredonda_meio_centavo_para_cima_e_relatorio_bate_com_o_cupom(loga
     with app.app_context():
         comanda = db.obter().execute("SELECT * FROM cmd_comandas WHERE id = ?", (comanda_id,)).fetchone()
         assert (comanda["status"], comanda["total_centavos"], comanda["taxa_centavos"]) == ("fechada", 1106, 101)
-        resumo = relatorios.resumo(db.obter(), 1, hoje_local(), hoje_local())
-    assert resumo["faturamento"] == 1106 and resumo["taxa"] == 101
+        resumo = RelatorioDeVendas(RepositorioDeVendasSQLite(db.obter(), 1)).resumo(*intervalo_utc(hoje_local(), hoje_local()))
+    assert resumo.faturamento == 1106 and resumo.taxa == 101
 
 
 def test_nao_paga_a_mais_nem_depois_de_fechada(logado, app):

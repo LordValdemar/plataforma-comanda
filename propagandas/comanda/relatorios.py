@@ -1,92 +1,40 @@
-"""Relatório de vendas por período (e exportação em CSV)."""
+"""Relatório de vendas por período (e exportação em CSV). As regras ficam em src/domain/relatorios."""
 
 import csv
 import io
-from datetime import date, timedelta
 
 from flask import Blueprint, Response, g, render_template, request
+
+from src.domain.periodo import Periodo
+from src.domain.relatorios import RelatorioDeVendas
+from src.domain.relatorios.vendas import MAX_DIAS
+from src.infrastructure.sqlite import RepositorioDeVendasSQLite
 
 from .. import db, modulos
 from .base import exigir_funcao
 from .comandas import FORMAS
-from .formatos import data_hora, entrada_reais, hoje_local, intervalo_utc
+from .formatos import data_hora, hoje_local, intervalo_utc
 
 bp = Blueprint("comanda_relatorios", __name__, url_prefix="/comanda/relatorios")
 bp.before_request(modulos.exigir("comanda"))
-MAX_DIAS = 366
 
 
 def ler_periodo(argumentos, padrao):
-    """Lê ?de=AAAA-MM-DD&ate=AAAA-MM-DD; datas inválidas voltam ao padrão."""
-    def ler(nome):
-        try:
-            return date.fromisoformat(argumentos.get(nome, ""))
-        except ValueError:
-            return padrao
-    inicio, fim = ler("de"), ler("ate")
-    if fim < inicio:
-        inicio, fim = fim, inicio
-    if (fim - inicio).days >= MAX_DIAS:
-        inicio = fim - timedelta(days=MAX_DIAS - 1)
-    return inicio, fim
+    """?de=AAAA-MM-DD&ate=AAAA-MM-DD (datas inválidas voltam ao padrão; no máximo um ano)."""
+    periodo = Periodo.ler(argumentos.get("de"), argumentos.get("ate"), padrao, padrao, MAX_DIAS)
+    return periodo.inicio, periodo.fim
 
 
-def resumo(conexao, empresa_id, inicio, fim):
-    de, ate = intervalo_utc(inicio, fim)
-    filtro = "c.empresa_id = ? AND c.status = 'fechada' AND c.fechada_em >= ? AND c.fechada_em < ?"
-    geral = conexao.execute(
-        f"SELECT COUNT(*) AS comandas, COALESCE(SUM(c.total_centavos), 0) AS faturamento, "
-        f"COALESCE(SUM(c.desconto_centavos), 0) AS descontos FROM cmd_comandas c WHERE {filtro}",
-        (empresa_id, de, ate),
-    ).fetchone()
-    # Taxa de serviço (é o que vai para a equipe): a gravada no fechamento, igual à do cupom.
-    # Comandas fechadas antes dessa gravação existir são recalculadas a partir dos itens.
-    taxa = conexao.execute(
-        f"SELECT COALESCE(SUM(COALESCE(c.taxa_centavos, CASE WHEN c.cobrar_taxa = 1 "
-        f"THEN ROUND(s.sub * c.taxa_percentual / 100) ELSE 0 END)), 0) FROM cmd_comandas c "
-        f"LEFT JOIN (SELECT comanda_id, SUM(preco_centavos * quantidade) AS sub FROM cmd_itens WHERE status != 'cancelado' "
-        f"GROUP BY comanda_id) s ON s.comanda_id = c.id WHERE {filtro}",
-        (empresa_id, de, ate),
-    ).fetchone()[0]
-    formas = conexao.execute(
-        f"SELECT p.forma, COUNT(*) AS quantidade, SUM(p.valor_centavos) AS valor FROM cmd_pagamentos p "
-        f"JOIN cmd_comandas c ON c.id = p.comanda_id WHERE {filtro} GROUP BY p.forma ORDER BY valor DESC",
-        (empresa_id, de, ate),
-    ).fetchall()
-    produtos = conexao.execute(
-        f"SELECT i.nome, SUM(i.quantidade) AS quantidade, SUM(i.quantidade * i.preco_centavos) AS valor FROM cmd_itens i "
-        f"JOIN cmd_comandas c ON c.id = i.comanda_id WHERE {filtro} AND i.status != 'cancelado' "
-        f"GROUP BY i.nome ORDER BY quantidade DESC, valor DESC",
-        (empresa_id, de, ate),
-    ).fetchall()
-    cancelados = conexao.execute(
-        "SELECT i.*, c.numero, u.usuario AS cancelado_por_nome FROM cmd_itens i JOIN cmd_comandas c ON c.id = i.comanda_id "
-        "LEFT JOIN usuarios u ON u.id = i.cancelado_por "
-        "WHERE i.empresa_id = ? AND i.status = 'cancelado' AND i.atualizado_em >= ? AND i.atualizado_em < ? "
-        "ORDER BY i.atualizado_em",
-        (empresa_id, de, ate),
-    ).fetchall()
-    garcons = conexao.execute(
-        f"SELECT COALESCE(u.usuario, '—') AS garcom, SUM(i.quantidade * i.preco_centavos) AS valor FROM cmd_itens i "
-        f"JOIN cmd_comandas c ON c.id = i.comanda_id LEFT JOIN usuarios u ON u.id = i.lancado_por "
-        f"WHERE {filtro} AND i.status != 'cancelado' GROUP BY u.usuario ORDER BY valor DESC",
-        (empresa_id, de, ate),
-    ).fetchall()
-    abertas = conexao.execute(
-        "SELECT COUNT(*) FROM cmd_comandas WHERE empresa_id = ? AND status = 'aberta'", (empresa_id,)
-    ).fetchone()[0]
-    return {
-        "comandas": geral["comandas"],
-        "faturamento": geral["faturamento"],
-        "descontos": geral["descontos"],
-        "taxa": int(taxa),
-        "ticket_medio": geral["faturamento"] // geral["comandas"] if geral["comandas"] else 0,
-        "formas": formas,
-        "produtos": produtos,
-        "cancelados": cancelados,
-        "garcons": garcons,
-        "abertas": abertas,
-    }
+def relatorio():
+    return RelatorioDeVendas(RepositorioDeVendasSQLite(db.obter(), g.empresa_id))
+
+
+def csv_para_baixar(linhas, nome):
+    """Ponto e vírgula e BOM: abre direto no Excel em português, com os acentos."""
+    saida = io.StringIO()
+    csv.writer(saida, delimiter=";").writerows(linhas)
+    return Response("﻿" + saida.getvalue(), mimetype="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{nome}"'})
 
 
 @bp.route("/")
@@ -94,40 +42,12 @@ def resumo(conexao, empresa_id, inicio, fim):
 def vendas():
     inicio, fim = ler_periodo(request.args, padrao=hoje_local())
     return render_template("comanda/relatorios.html", inicio=inicio, fim=fim,
-                           dados=resumo(db.obter(), g.empresa_id, inicio, fim), formas=FORMAS)
+                           dados=relatorio().resumo(*intervalo_utc(inicio, fim)), formas=FORMAS)
 
 
 @bp.route("/comandas.csv")
 @exigir_funcao("vendas")
 def exportar():
     inicio, fim = ler_periodo(request.args, padrao=hoje_local())
-    de, ate = intervalo_utc(inicio, fim)
-    conexao = db.obter()
-    comandas = conexao.execute(
-        "SELECT c.*, GROUP_CONCAT(p.forma || ':' || p.valor_centavos, ' ') AS pagamentos, "
-        "(SELECT usuario FROM usuarios WHERE id = c.garcom_id) AS garcom_nome FROM cmd_comandas c "
-        "LEFT JOIN cmd_pagamentos p ON p.comanda_id = c.id "
-        "WHERE c.empresa_id = ? AND c.status != 'aberta' AND c.fechada_em >= ? AND c.fechada_em < ? "
-        "GROUP BY c.id ORDER BY c.fechada_em",
-        (g.empresa_id, de, ate),
-    ).fetchall()
-    saida = io.StringIO()
-    # Ponto e vírgula e vírgula decimal: abre direto no Excel em português.
-    escritor = csv.writer(saida, delimiter=";")
-    escritor.writerow(["comanda", "mesa", "cliente", "garçom", "situação", "aberta em", "fechada em", "desconto", "total", "pagamentos"])
-    for c in comandas:
-        pagamentos = " ".join(
-            f"{FORMAS.get(forma, forma)} {entrada_reais(int(valor))}"
-            for forma, _, valor in (p.partition(":") for p in (c["pagamentos"] or "").split())
-        )
-        escritor.writerow([
-            c["numero"], c["mesa"] or "", c["cliente"] or "", c["garcom_nome"] or "", c["status"], data_hora(c["aberta_em"]),
-            data_hora(c["fechada_em"]), entrada_reais(c["desconto_centavos"]), entrada_reais(c["total_centavos"] or 0),
-            pagamentos if c["status"] == "fechada" else (c["motivo_cancelamento"] or ""),
-        ])
-    nome = f"comandas-{inicio:%Y%m%d}-{fim:%Y%m%d}.csv"
-    return Response(
-        "﻿" + saida.getvalue(),  # BOM: o Excel reconhece os acentos
-        mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
-    )
+    linhas = relatorio().planilha(*intervalo_utc(inicio, fim), data_hora=data_hora)
+    return csv_para_baixar(linhas, f"comandas-{inicio:%Y%m%d}-{fim:%Y%m%d}.csv")
