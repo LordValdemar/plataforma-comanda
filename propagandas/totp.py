@@ -1,51 +1,28 @@
-"""Verificação em duas etapas (TOTP, RFC 6238), compatível com Google Authenticator, Authy, etc."""
+"""Verificação em duas etapas: as regras ficam em src/domain/totp.py; aqui, o relógio e o QR code.
 
-import base64
-import hashlib
-import hmac
-import secrets
-import struct
+O relógio do 2FA é o `time` deste módulo (os testes trocam só ele, sem mexer no resto do sistema).
+"""
+
 import time
-from urllib.parse import quote
 
 import segno
 
-PASSO = 30       # segundos de validade de cada código
-DIGITOS = 6
-TOLERANCIA = 1   # aceita o código anterior/seguinte (relógio do celular adiantado/atrasado)
+from src.domain import totp as _regras
+from src.domain.totp import DIGITOS, PASSO, novo_segredo, uri
+
+__all__ = ["DIGITOS", "PASSO", "agora", "codigo_atual", "novo_segredo", "qr_code", "uri", "verificar"]
 
 
-def novo_segredo():
-    return base64.b32encode(secrets.token_bytes(20)).decode()
+def agora():
+    return time.time()
 
 
-def _codigo(segredo, contador):
-    chave = base64.b32decode(segredo)
-    resumo = hmac.new(chave, struct.pack(">Q", contador), hashlib.sha1).digest()
-    deslocamento = resumo[-1] & 0x0F
-    numero = struct.unpack(">I", resumo[deslocamento:deslocamento + 4])[0] & 0x7FFFFFFF
-    return str(numero % 10**DIGITOS).zfill(DIGITOS)
+def codigo_atual(segredo, momento=None):
+    return _regras.codigo_atual(segredo, momento or agora())
 
 
-def codigo_atual(segredo, agora=None):
-    return _codigo(segredo, int((agora or time.time()) // PASSO))
-
-
-def verificar(segredo, codigo, ultimo_usado=0, agora=None):
-    """Retorna o contador do código aceito (para impedir reuso) ou None se inválido."""
-    codigo = "".join(c for c in str(codigo) if c.isdigit())
-    if len(codigo) != DIGITOS:
-        return None
-    contador_atual = int((agora or time.time()) // PASSO)
-    for contador in range(contador_atual - TOLERANCIA, contador_atual + TOLERANCIA + 1):
-        if contador > ultimo_usado and hmac.compare_digest(_codigo(segredo, contador), codigo):
-            return contador
-    return None
-
-
-def uri(segredo, usuario, emissor="Painel de Propagandas"):
-    rotulo = quote(f"{emissor}:{usuario}")
-    return f"otpauth://totp/{rotulo}?secret={segredo}&issuer={quote(emissor)}&digits={DIGITOS}&period={PASSO}"
+def verificar(segredo, codigo, ultimo_usado=0, momento=None):
+    return _regras.verificar(segredo, codigo, ultimo_usado, momento or agora())
 
 
 def qr_code(segredo, usuario, emissor="Painel de Propagandas"):

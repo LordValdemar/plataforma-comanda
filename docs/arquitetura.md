@@ -34,7 +34,7 @@ Regras:
 | 3c. Painel de propagandas: telas, grupos e conexão da TV | feita |
 | 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | feita |
 | 5a. Cobrança e Asaas | feita |
-| 5b. Login e usuários | a fazer |
+| 5b. Login e usuários | feita |
 
 ## Comanda
 
@@ -110,6 +110,18 @@ TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a pont
 
 Testes: `tests/unidade/test_cobranca_dominio.py` (Asaas e banco falsos, data controlada) e
 `tests/test_cobranca_repositorio.py` (banco de verdade e o cliente do Asaas com o HTTP substituído).
+
+## Login e usuários
+
+- `src/domain/contas`: papéis, regras de nome e senha, o acesso conforme a situação da empresa (liberado,
+  só a página de pagamento, suspenso) e o serviço: criar, entrar (a loja é a da senha que confere; o código
+  da loja desempata), 2FA, trocar senha (derruba os outros aparelhos) e a equipe da loja.
+- `src/domain/totp.py`: os códigos de 2FA (RFC 6238); `src/domain/tentativas.py`: o limite de tentativas por IP.
+- `src/infrastructure/senhas.py`: o hash das senhas (werkzeug); `src/infrastructure/sqlite/contas.py`: usuarios.
+- `propagandas/auth.py`: sessão, CSRF, os decoradores de login e as rotas.
+
+Testes: `tests/unidade/test_contas_dominio.py` (senhas e banco falsos, relógio controlado) e
+`tests/test_contas_repositorio.py` (banco e hash de verdade; limite de tentativas com 16 threads).
 
 ## Versões locais
 
