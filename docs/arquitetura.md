@@ -32,7 +32,7 @@ Regras:
 | 3b. Ponto | feita |
 | 3c. Painel de propagandas: propagandas, agenda e o que vai para cada TV | feita |
 | 3c. Painel de propagandas: telas, grupos e conexão da TV | feita |
-| 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | a fazer |
+| 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | em andamento |
 
 ## Comanda
 
@@ -94,3 +94,16 @@ Testes: `tests/unidade/test_ponto_dominio.py` (regras, sem banco) e `tests/test_
 Testes: `tests/unidade/test_painel_dominio.py` e `test_telas_dominio.py` (regras, sem banco),
 `tests/test_propagandas_repositorio.py` e `test_telas_repositorio.py` (banco de verdade: isolamento entre lojas,
 TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a ponta, 6 TVs disputando uma tela antiga).
+
+## Versões locais
+
+A Comanda e o Painel locais (instalados no servidor do estabelecimento) usam as mesmas regras
+da plataforma. Só o domínio (`src/domain`) é compartilhado: cada versão tem o próprio banco e,
+por isso, a própria infraestrutura. Para levar uma mudança de regra às versões locais:
+
+```bash
+python ferramentas/copiar_nucleo.py ../Comanda ../S
+```
+
+A cópia leva `src/nucleo.json` (commit de origem e impressão digital) e `tests/test_nucleo.py`,
+que falha se alguém mudar a cópia à mão. Regras se mudam aqui e se copiam de novo.
