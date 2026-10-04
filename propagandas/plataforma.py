@@ -39,7 +39,7 @@ def lista():
         FROM empresas e ORDER BY e.id
         """
     ).fetchall()
-    telas = conexao.execute("SELECT empresa_id, ultimo_contato FROM telas").fetchall()
+    telas = conexao.execute("SELECT empresa_id, ultimo_contato, fechada_em FROM telas").fetchall()
     resumo_telas = {}
     for tela in telas:
         contagem = resumo_telas.setdefault(tela["empresa_id"], {"total": 0, "online": 0})

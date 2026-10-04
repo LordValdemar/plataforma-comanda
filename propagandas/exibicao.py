@@ -239,15 +239,22 @@ def conexao_api():
     return {"pronto": True, "url": url_for("exibicao.tela", codigo=tela["codigo"])}
 
 
+FECHADA_TOLERANCIA = 3  # segundos: pedido que já estava a caminho quando a janela fechou não a "reabre"
+
+
 def _registrar_contato(tela, **extras):
-    if not extras and tela["ultimo_contato"]:
-        segundos = (agenda.agora_utc() - agenda.de_texto_utc(tela["ultimo_contato"])).total_seconds()
+    agora = agenda.agora_utc()
+    if tela["fechada_em"] and (agora - agenda.de_texto_utc(tela["fechada_em"])).total_seconds() < FECHADA_TOLERANCIA:
+        return
+    if not extras and tela["ultimo_contato"] and not tela["fechada_em"]:
+        segundos = (agora - agenda.de_texto_utc(tela["ultimo_contato"])).total_seconds()
         if segundos < INTERVALO_CONTATO:
             return
     campos = {
-        "ultimo_contato": agenda.para_texto_utc(agenda.agora_utc()),
+        "ultimo_contato": agenda.para_texto_utc(agora),
         "ultimo_ip": (request.remote_addr or "")[:45],
         "navegador": request.headers.get("User-Agent", "")[:200],
+        "fechada_em": None,  # deu sinal de vida: a janela está aberta
         **extras,
     }
     conexao = db.obter()
@@ -334,6 +341,15 @@ def pulso(codigo):
     dados = request.get_json(silent=True)
     if not isinstance(dados, dict):
         abort(400)
+    if dados.get("saindo") is True:
+        # A janela da TV foi fechada (ou recarregada): offline na hora. Se ela voltar, o
+        # próximo contato limpa a marca.
+        agora_texto = agenda.para_texto_utc(agenda.agora_utc())
+        conexao = db.obter()
+        with conexao:
+            conexao.execute("UPDATE telas SET ultimo_contato = ?, fechada_em = ?, exibindo = NULL WHERE id = ?",
+                            (agora_texto, agora_texto, tela["id"]))
+        return {"saindo": True}
     registros = dados.get("exibicoes") or []
     if not isinstance(registros, list):
         abort(400)

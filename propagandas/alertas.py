@@ -117,6 +117,8 @@ def enviar_alerta(mensagem, canais, config=None):
 def esta_online(tela):
     if not tela["ultimo_contato"]:
         return False
+    if tela["fechada_em"] and tela["fechada_em"] >= tela["ultimo_contato"]:
+        return False  # a TV avisou que a janela foi fechada
     segundos = (agenda.agora_utc() - agenda.de_texto_utc(tela["ultimo_contato"])).total_seconds()
     return segundos < ONLINE_SEGUNDOS
 

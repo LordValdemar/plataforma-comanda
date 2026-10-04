@@ -57,7 +57,7 @@
           {% else %}
             <span class="status offline">Offline</span>
           {% endif %}
-          <span class="dica">· último contato {{ t.ultimo_contato|tempo_desde }}</span>
+          <span class="dica">· {% if t.fechada_em and not online[t.id] %}janela fechada {{ t.fechada_em|tempo_desde }}{% else %}último contato {{ t.ultimo_contato|tempo_desde }}{% endif %}</span>
         </div>
       </div>
       <div class="resumo">

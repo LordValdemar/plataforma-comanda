@@ -212,7 +212,13 @@ setInterval(async () => {
 if (URL_PULSO) {
   enviarPulso();
   setInterval(enviarPulso, INTERVALO_PULSO);
-  // Guarda a exibição em andamento se a página for fechada ou recarregada.
-  window.addEventListener("pagehide", encerrarExibicaoAtual);
+  // Guarda a exibição em andamento se a página for fechada ou recarregada, e avisa o
+  // servidor que a janela fechou (a tela aparece offline na hora, no painel).
+  window.addEventListener("pagehide", () => {
+    encerrarExibicaoAtual();
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(URL_PULSO, new Blob([JSON.stringify({ saindo: true })], { type: "application/json" }));
+    }
+  });
 }
 proxima();

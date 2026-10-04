@@ -527,3 +527,26 @@ def test_propaganda_nova_nao_vai_para_nenhuma_tela_sem_escolher(logado):
     postar(logado, "/enviar", {"duracao": "5", "arquivos": (io.BytesIO(PNG), "antigo.png")},
            content_type="multipart/form-data")
     assert ids_na_tela(logado, outra) == [] and pid not in ids_na_tela(logado, tela_sp)
+
+
+def test_tv_avisa_quando_a_janela_fecha(logado):
+    tela = criar_tela(logado, "Salão")
+    logado.post(f"/api/tela/{tela['codigo']}/pulso", json={"exibicoes": []})
+    assert "Online" in logado.get("/telas").get_data(as_text=True)
+    # A janela fechou: o navegador manda o último sinal e a tela fica offline na hora.
+    assert logado.post(f"/api/tela/{tela['codigo']}/pulso", json={"saindo": True}).get_json() == {"saindo": True}
+    pagina = logado.get("/telas").get_data(as_text=True)
+    assert "Offline" in pagina and "janela fechada" in pagina
+    # Outro aparelho não consegue derrubar a tela.
+    intruso = logado.application.test_client()
+    assert intruso.post(f"/api/tela/{tela['codigo']}/pulso", json={"saindo": True}).status_code == 403
+    # Um pedido que já estava a caminho quando a janela fechou não a "reabre".
+    logado.post(f"/api/tela/{tela['codigo']}/pulso", json={"exibicoes": []})
+    assert "janela fechada" in logado.get("/telas").get_data(as_text=True)
+    # A TV abriu de novo (passados alguns segundos): o primeiro contato já a coloca online.
+    with logado.application.app_context():
+        conexao = db.obter()
+        with conexao:
+            conexao.execute("UPDATE telas SET fechada_em = '2026-01-01 00:00:00', ultimo_contato = '2026-01-01 00:00:00'")
+    logado.get(f"/api/tela/{tela['codigo']}/playlist")
+    assert "Online" in logado.get("/telas").get_data(as_text=True)
