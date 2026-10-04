@@ -444,6 +444,16 @@ MIGRACOES = [
     );
     CREATE INDEX autorizacoes_empresa ON autorizacoes(empresa_id, usado_em);
     """,
+    # 14 - a autorização pode valer uma vez só, por um tempo ou sem prazo (até alguém encerrar).
+    """
+    ALTER TABLE autorizacoes ADD COLUMN modo TEXT NOT NULL DEFAULT 'minutos';
+    ALTER TABLE autorizacoes ADD COLUMN minutos INTEGER NOT NULL DEFAULT 5;
+    ALTER TABLE autorizacoes ADD COLUMN ate TEXT;
+    ALTER TABLE autorizacoes ADD COLUMN consumida_em TEXT;
+    ALTER TABLE autorizacoes ADD COLUMN revogada_em TEXT;
+    ALTER TABLE autorizacoes ADD COLUMN encerrada_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+    CREATE INDEX autorizacoes_liberadas ON autorizacoes(usado_por, funcao);
+    """,
 ]
 
 

@@ -1,7 +1,6 @@
 """Permissões por papel (escolhidas pelo administrador) e autorização por QR code."""
 
 import re
-import time
 
 from test_comanda_regras import abrir_comanda, criar_pessoa, criar_produto, postar_c
 
@@ -26,9 +25,9 @@ def consultar(app, sql, *parametros):
         return db.obter().execute(sql, parametros).fetchall()
 
 
-def codigo_do_qr(cliente, funcao):
-    """Quem autoriza abre "Autorizar" e escolhe a função: aparece o QR (e o código para digitar)."""
-    pagina = cliente.get(f"/autorizar?funcao={funcao}").get_data(as_text=True)
+def codigo_do_qr(cliente, funcao, modo="minutos", minutos=5):
+    """Quem autoriza abre "Autorizar", escolhe a função e o tipo: aparece o QR (e o código para digitar)."""
+    pagina = cliente.get(f"/autorizar?funcao={funcao}&modo={modo}&minutos={minutos}").get_data(as_text=True)
     return re.search(r'class="selo codigo-autorizacao">([A-Z0-9]{8})<', pagina).group(1)
 
 
@@ -120,8 +119,10 @@ def test_garcom_fecha_conta_com_o_qr_do_caixa(logado, app):
     assert joana.get(f"/comanda/{comanda_id}/fechar").status_code == 403
 
     # Passados os minutos da liberação, precisa de novo.
-    with maria.session_transaction() as sessao:
-        sessao["autorizacoes"]["fechar_conta"]["ate"] = time.time() - 1
+    with app.app_context():
+        conexao = db.obter()
+        with conexao:
+            conexao.execute("UPDATE autorizacoes SET ate = '2020-01-01 00:00:00' WHERE usado_por IS NOT NULL")
     assert maria.get(f"/comanda/{comanda_id}/fechar").status_code == 403
 
 
@@ -193,3 +194,50 @@ def test_codigo_de_outra_loja_nao_vale(logado, app):
     maria = pessoa(app, "maria")
     assert "não vale" in maria.get(f"/autorizacao/{codigo}", follow_redirects=True).get_data(as_text=True)
     assert outro.get(f"/api/autorizar/{codigo}").get_json() == {"situacao": "aguardando"}
+
+
+def test_tipos_de_liberacao_uma_vez_por_tempo_e_sem_prazo(logado, app):
+    criar_pessoa(app, "maria", "garcom")
+    criar_pessoa(app, "caixa", "caixa")
+    permitir(logado, **{"fechar_conta.garcom": permissoes.AUTORIZACAO})
+    maria, caixa = pessoa(app, "maria"), pessoa(app, "caixa")
+    primeira, segunda = comanda_com_lanche(logado), abrir_comanda(logado, 6)
+
+    # Antes do QR, quem autoriza escolhe o tipo.
+    pagina = caixa.get("/autorizar?funcao=fechar_conta").get_data(as_text=True)
+    assert "Uma vez só" in pagina and "Por um tempo" in pagina and "Sem prazo" in pagina
+
+    # Uma vez: fecha uma conta; a seguinte pede de novo.
+    resposta = maria.get(f"/autorizacao/{codigo_do_qr(caixa, 'fechar_conta', 'uma')}", follow_redirects=True)
+    assert "liberado uma vez" in resposta.get_data(as_text=True)
+    resposta = postar_c(maria, f"/comanda/{primeira}/fechar", {"acao": "finalizar"}, follow_redirects=True)
+    assert "Ainda falta receber" in resposta.get_data(as_text=True)
+    assert maria.get(f"/comanda/{primeira}/fechar").status_code == 200  # o erro não gastou a liberação
+    postar_c(maria, f"/comanda/{primeira}/fechar", {"acao": "pagar", "forma": "pix", "valor": "22"})
+    postar_c(maria, f"/comanda/{primeira}/fechar", {"acao": "finalizar"})
+    assert consultar(app, "SELECT status FROM cmd_comandas WHERE id = ?", primeira)[0][0] == "fechada"
+    assert maria.get(f"/comanda/{segunda}/fechar").status_code == 403
+
+    # O histórico guarda quem autorizou.
+    assert "autorizado por caixa" in logado.get("/comanda/historico").get_data(as_text=True)
+    assert "autorizado por caixa" in logado.get(f"/comanda/{primeira}/cupom").get_data(as_text=True)
+
+    # Por um tempo: o prazo começa quando a pessoa lê.
+    maria.get(f"/autorizacao/{codigo_do_qr(caixa, 'fechar_conta', 'minutos', 30)}")
+    assert maria.get(f"/comanda/{segunda}/fechar").status_code == 200
+    assert "por 30 minutos" in caixa.get("/autorizar").get_data(as_text=True)
+
+    # Sem prazo: vale até alguém encerrar (e continua depois de sair e entrar de novo).
+    with app.app_context():
+        conexao = db.obter()
+        with conexao:
+            conexao.execute("UPDATE autorizacoes SET revogada_em = '2020-01-01 00:00:00' WHERE usado_por IS NOT NULL")
+    maria.get(f"/autorizacao/{codigo_do_qr(caixa, 'fechar_conta', 'sempre')}")
+    maria = pessoa(app, "maria")
+    assert maria.get(f"/comanda/{segunda}/fechar").status_code == 200
+    liberacao = consultar(app, "SELECT id FROM autorizacoes WHERE modo = 'sempre'")[0][0]
+    assert "sem prazo" in logado.get("/autorizar").get_data(as_text=True)  # o administrador vê todas
+    criar_pessoa(app, "outro", "caixa")
+    assert postar_c(pessoa(app, "outro"), f"/autorizar/{liberacao}/encerrar").status_code == 403  # não foi ele
+    postar_c(caixa, f"/autorizar/{liberacao}/encerrar")
+    assert maria.get(f"/comanda/{segunda}/fechar").status_code == 403

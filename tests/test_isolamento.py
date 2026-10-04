@@ -105,13 +105,19 @@ def lojas(logado):
     comanda = consultar(app, "SELECT id FROM cmd_comandas WHERE empresa_id = ?", vitima_id)[0]["id"]
     vitima.post(f"/comanda/{comanda}/itens", data={f"qtd_{produto}": "2", "csrf_token": csrf_vitima})
     item = consultar(app, "SELECT id FROM cmd_itens WHERE empresa_id = ?", vitima_id)[0]["id"]
+    # Uma liberação "sem prazo" dada pelo administrador da vítima ao garçom dela.
+    vitima.post("/permissoes", data={"fechar_conta.garcom": "2", "csrf_token": csrf_vitima})
+    pagina = vitima.get("/autorizar?funcao=fechar_conta&modo=sempre").get_data(as_text=True)
+    codigo_qr = re.search(r'class="selo codigo-autorizacao">([A-Z0-9]{8})<', pagina).group(1)
+    entrar(app, "garcom-vitima").get(f"/autorizacao/{codigo_qr}")
+    liberacao = consultar(app, "SELECT id FROM autorizacoes WHERE empresa_id = ? AND usado_em IS NOT NULL", vitima_id)[0][0]
 
     ids = {
         "propaganda_id": consultar(app, "SELECT id FROM propagandas WHERE empresa_id = ?", vitima_id)[0]["id"],
         "tela_id": tela["id"],
         "grupo_id": consultar(app, "SELECT id FROM grupos WHERE empresa_id = ?", vitima_id)[0]["id"],
         "usuario_id": consultar(app, "SELECT id FROM usuarios WHERE usuario = 'vitima'")[0]["id"],
-        "empresa_id": vitima_id, "plano_id": 1, "comanda_id": comanda, "item_id": item,
+        "empresa_id": vitima_id, "plano_id": 1, "comanda_id": comanda, "item_id": item, "liberacao_id": liberacao,
         "produto_id": produto, "categoria_id": categoria,
         "direcao": "cima", "codigo": tela["codigo"],
     }
@@ -166,6 +172,10 @@ def test_outra_loja_nao_alcanca_nada_em_nenhuma_rota(lojas):
 
 def test_garcom_nao_usa_rotas_da_administracao(lojas):
     app, vitima_id, ids, formulario = lojas
+    with app.app_context():  # a liberação "sem prazo" do garçom (da fixture) não vale aqui
+        conexao = db.obter()
+        with conexao:
+            conexao.execute("UPDATE autorizacoes SET revogada_em = '2020-01-01 00:00:00'")
     garcom = entrar(app, "garcom-vitima")
     antes = foto(app, vitima_id)  # depois de entrar: abrir /conta prepara o segredo da 2FA de quem entra
     for regra in rotas(app):

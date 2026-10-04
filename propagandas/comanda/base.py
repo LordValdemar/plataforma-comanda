@@ -69,10 +69,24 @@ def gravar_config(chave, valor):
     db.gravar_config(g.empresa_id, "comanda." + chave, str(valor))
 
 
+def _com_autorizacao(detalhe):
+    """Quem fez com autorização por QR code: o nome de quem autorizou fica no histórico."""
+    if not g.get("autorizado_por"):
+        return detalhe
+    return f"{detalhe} (autorizado por {g.autorizado_por})" if detalhe else f"autorizado por {g.autorizado_por}"
+
+
+def anotar_autorizacao(conexao, acao, detalhe, comanda_id):
+    """Registra no histórico uma ação feita com autorização (as outras não precisam de registro extra)."""
+    if g.get("autorizado_por"):
+        with conexao:
+            auditar(conexao, acao, detalhe, comanda_id)
+
+
 def auditar(conexao, acao, detalhe="", comanda_id=None):
     """Registra quem fez o quê (cancelamentos, descontos...). Chame dentro da transação da mudança."""
     conexao.execute(
         "INSERT INTO cmd_auditoria (empresa_id, usuario_id, comanda_id, acao, detalhe) VALUES (?, ?, ?, ?, ?)",
         (g.empresa_id, g.usuario["id"] if g.usuario is not None else None, comanda_id, acao,
-         f"{detalhe} (autorizado por {g.autorizado_por})" if g.get("autorizado_por") else detalhe),
+         _com_autorizacao(detalhe)),
     )

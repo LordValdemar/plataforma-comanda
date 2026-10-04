@@ -11,7 +11,6 @@ que são o comportamento de antes desta tela existir.
 
 import logging
 import secrets
-import time
 from datetime import timedelta
 from functools import wraps
 
@@ -28,7 +27,10 @@ NAO, SIM, AUTORIZACAO = 0, 1, 2
 NIVEIS = {NAO: "Não", SIM: "Sim", AUTORIZACAO: "Com autorização"}
 
 CODIGO_SEGUNDOS = 120        # o QR code de autorização vale 2 minutos e uma leitura só
-LIBERADO_MINUTOS = 5         # depois de lido, a pessoa fica liberada por 5 minutos
+LIBERADO_MINUTOS = 5         # tempo sugerido quando quem autoriza escolhe "por um tempo"
+MAX_MINUTOS = 12 * 60        # "por um tempo" vai até 12 horas (mais que isso, use "sem prazo")
+# Como fica a liberação depois que a pessoa lê o QR: uma ação, alguns minutos ou até alguém encerrar.
+MODOS = {"uma": "Uma vez só", "minutos": "Por um tempo", "sempre": "Sem prazo (até encerrar)"}
 LETRAS_DO_CODIGO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # sem 0/O, 1/I/L: fácil de digitar
 
 # Papéis que aparecem em cada módulo (o administrador não entra: ele sempre pode).
@@ -143,14 +145,45 @@ def nivel(funcao, usuario=None):
     return nivel_do_papel(usuario["empresa_id"], funcao, usuario["papel"])
 
 
+def _liberacao(funcao):
+    """Liberação por QR code valendo agora para quem está logado, nesta função (ou None)."""
+    if g.get("usuario") is None:
+        return None
+    # Prefere a que tem prazo ou é sem prazo: a de "uma vez" fica guardada para quando precisar.
+    return db.obter().execute(
+        "SELECT a.*, p.usuario AS autorizador FROM autorizacoes a LEFT JOIN usuarios p ON p.id = a.autorizado_por "
+        "WHERE a.usado_por = ? AND a.funcao = ? AND a.revogada_em IS NULL AND a.consumida_em IS NULL "
+        "AND (a.modo != 'minutos' OR a.ate > ?) ORDER BY a.modo = 'uma' LIMIT 1",
+        (g.usuario["id"], funcao, agenda.para_texto_utc(agenda.agora_utc())),
+    ).fetchone()
+
+
 def autorizado(funcao):
     """Liberação por QR code ainda valendo para esta função? Devolve quem autorizou."""
-    liberacao = session.get("autorizacoes", {}).get(funcao)
-    if not liberacao or g.get("usuario") is None or liberacao.get("usuario_id") != g.usuario["id"]:
-        return None
-    if liberacao.get("ate", 0) < time.time():
-        return None
-    return liberacao.get("por")
+    liberacao = _liberacao(funcao)
+    return None if liberacao is None else (liberacao["autorizador"] or "—")
+
+
+def _gasta_a_liberacao(funcao):
+    """Quando a liberação de "uma vez" é usada: no primeiro envio que dá certo (no fechamento, ao finalizar)."""
+    if request.method != "POST":
+        return False
+    return funcao != "fechar_conta" or request.form.get("acao") == "finalizar"
+
+
+def _gastar_liberacoes(resposta):
+    """after_request: marca como usada a liberação de "uma vez", se a ação deu certo."""
+    ids = g.pop("liberacoes_a_gastar", None)
+    if not ids or resposta.status_code >= 400:
+        return resposta
+    if any(categoria == "erro" for categoria, _ in session.get("_flashes", [])):
+        return resposta  # a ação não aconteceu (ex.: ainda falta pagar): a liberação continua
+    conexao = db.obter()
+    with conexao:
+        for liberacao_id in ids:
+            conexao.execute("UPDATE autorizacoes SET consumida_em = ? WHERE id = ? AND consumida_em IS NULL",
+                            (agenda.para_texto_utc(agenda.agora_utc()), liberacao_id))
+    return resposta
 
 
 def pode(funcao):
@@ -170,9 +203,11 @@ def verificar(funcao):
     if atual == SIM:
         return None
     if atual == AUTORIZACAO:
-        por = autorizado(funcao)
-        if por is not None:
-            g.autorizado_por = por
+        liberacao = _liberacao(funcao)
+        if liberacao is not None:
+            g.autorizado_por = liberacao["autorizador"] or "—"
+            if liberacao["modo"] == "uma" and _gasta_a_liberacao(funcao):
+                g.setdefault("liberacoes_a_gastar", set()).add(liberacao["id"])
             return None
         return pedir_autorizacao(funcao)
     abort(403)
@@ -296,7 +331,8 @@ def configurar():
 
 def _limpar_vencidos(conexao):
     limite = agenda.para_texto_utc(agenda.agora_utc() - timedelta(days=90))
-    conexao.execute("DELETE FROM autorizacoes WHERE criado_em < ?", (limite,))
+    conexao.execute("DELETE FROM autorizacoes WHERE criado_em < ? "
+                     "AND NOT (modo = 'sempre' AND usado_em IS NOT NULL AND revogada_em IS NULL)", (limite,))
 
 
 @bp.route("/autorizar")
@@ -306,11 +342,13 @@ def autorizar():
     if not funcoes:
         abort(403)
     funcao = request.args.get("funcao")
+    modo = request.args.get("modo")
+    minutos = _ler_minutos(request.args.get("minutos"))
     conexao = db.obter()
     codigo = qr = None
-    if funcao:
-        if funcao not in funcoes:
-            abort(403)
+    if funcao and funcao not in funcoes:
+        abort(403)
+    if funcao and modo in MODOS:
         codigo = "".join(secrets.choice(LETRAS_DO_CODIGO) for _ in range(8))
         with conexao:
             _limpar_vencidos(conexao)
@@ -319,8 +357,9 @@ def autorizar():
                 "DELETE FROM autorizacoes WHERE autorizado_por = ? AND usado_em IS NULL", (g.usuario["id"],)
             )
             conexao.execute(
-                "INSERT INTO autorizacoes (empresa_id, codigo, funcao, autorizado_por, criado_em) VALUES (?, ?, ?, ?, ?)",
-                (g.empresa_id, codigo, funcao, g.usuario["id"], agenda.para_texto_utc(agenda.agora_utc())),
+                "INSERT INTO autorizacoes (empresa_id, codigo, funcao, autorizado_por, criado_em, modo, minutos) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (g.empresa_id, codigo, funcao, g.usuario["id"], agenda.para_texto_utc(agenda.agora_utc()), modo, minutos),
             )
         endereco = url_for("permissoes.usar", codigo=codigo, _external=True)
         qr = segno.make(endereco, error="m").svg_data_uri(scale=10, border=2)
@@ -330,10 +369,62 @@ def autorizar():
         "WHERE a.empresa_id = ? AND a.usado_em IS NOT NULL ORDER BY a.usado_em DESC LIMIT 15",
         (g.empresa_id,),
     ).fetchall()
+    # Liberações que ainda valem (o administrador vê todas; quem autoriza, as que deu) e podem ser encerradas.
+    ativas = conexao.execute(
+        "SELECT a.*, u.usuario AS quem_usou, p.usuario AS quem_autorizou FROM autorizacoes a "
+        "LEFT JOIN usuarios u ON u.id = a.usado_por LEFT JOIN usuarios p ON p.id = a.autorizado_por "
+        "WHERE a.empresa_id = ? AND a.usado_em IS NOT NULL AND a.revogada_em IS NULL AND a.consumida_em IS NULL "
+        "AND (a.modo != 'minutos' OR a.ate > ?) AND (? OR a.autorizado_por = ?) ORDER BY a.usado_em DESC",
+        (g.empresa_id, agenda.para_texto_utc(agenda.agora_utc()), g.usuario["papel"] == "admin", g.usuario["id"]),
+    ).fetchall()
     return render_template(
         "autorizar.html", funcoes=funcoes, funcao=funcao, codigo=codigo, qr=qr, FUNCOES=FUNCOES,
-        validade=CODIGO_SEGUNDOS, recentes=recentes, minutos=LIBERADO_MINUTOS,
+        validade=CODIGO_SEGUNDOS, recentes=recentes, ativas=ativas, modo=modo, minutos=minutos, MODOS=MODOS,
+        max_minutos=MAX_MINUTOS, descrever=descrever,
     )
+
+
+def _ler_minutos(texto):
+    try:
+        return max(1, min(MAX_MINUTOS, int(texto)))
+    except (TypeError, ValueError):
+        return LIBERADO_MINUTOS
+
+
+def descrever(linha):
+    """'uma vez', 'por 30 minutos', 'sem prazo' (para as telas e avisos)."""
+    if linha["modo"] == "uma":
+        return "uma vez"
+    if linha["modo"] == "sempre":
+        return "sem prazo"
+    minutos = linha["minutos"]
+    if minutos % 60 == 0:
+        return f"por {minutos // 60} hora{'s' if minutos >= 120 else ''}"
+    return f"por {minutos} minutos"
+
+
+@bp.route("/autorizar/<int:liberacao_id>/encerrar", methods=["POST"])
+@login_obrigatorio()
+def encerrar(liberacao_id):
+    """Acaba com uma liberação antes da hora (a "sem prazo", principalmente)."""
+    conexao = db.obter()
+    linha = conexao.execute(
+        "SELECT a.*, u.usuario AS quem_usou FROM autorizacoes a LEFT JOIN usuarios u ON u.id = a.usado_por "
+        "WHERE a.empresa_id = ? AND a.id = ?",
+        (g.empresa_id, liberacao_id),
+    ).fetchone()
+    if linha is None:
+        abort(404)
+    if g.usuario["papel"] != "admin" and linha["autorizado_por"] != g.usuario["id"]:
+        abort(403)
+    with conexao:
+        conexao.execute(
+            "UPDATE autorizacoes SET revogada_em = ?, encerrada_por = ? WHERE id = ? AND revogada_em IS NULL",
+            (agenda.para_texto_utc(agenda.agora_utc()), g.usuario["id"], liberacao_id),
+        )
+    log.info("“%s” encerrou a liberação de “%s” (%s)", g.usuario["usuario"], linha["quem_usou"], linha["funcao"])
+    flash(f"Liberação de {linha['quem_usou'] or '—'} encerrada.", "ok")
+    return redirect(url_for("permissoes.autorizar"))
 
 
 @bp.route("/api/autorizar/<codigo>")
@@ -397,26 +488,26 @@ def usar(codigo):
         flash("Quem mostrou o código não pode mais autorizar isso.", "erro")
         return redirect(voltar)
     agora = agenda.para_texto_utc(agenda.agora_utc())
+    ate = None
+    if linha["modo"] == "minutos":
+        ate = agenda.para_texto_utc(agenda.agora_utc() + timedelta(minutes=linha["minutos"]))
     with conexao:
         usado = conexao.execute(
-            "UPDATE autorizacoes SET usado_por = ?, usado_em = ? WHERE id = ? AND usado_em IS NULL",
-            (g.usuario["id"], agora, linha["id"]),
+            "UPDATE autorizacoes SET usado_por = ?, usado_em = ?, ate = ? WHERE id = ? AND usado_em IS NULL",
+            (g.usuario["id"], agora, ate, linha["id"]),
         ).rowcount
     if not usado:  # alguém leu o mesmo QR um instante antes
         flash("Este código de autorização já foi usado. Peça um novo.", "erro")
         return redirect(voltar)
-    liberacoes = dict(session.get("autorizacoes", {}))
-    liberacoes[funcao] = {"usuario_id": g.usuario["id"], "ate": time.time() + LIBERADO_MINUTOS * 60,
-                          "por": linha["autorizador"]}
-    session["autorizacoes"] = liberacoes
-    log.info("“%s” autorizou “%s” a: %s", linha["autorizador"], g.usuario["usuario"], FUNCOES[funcao]["nome"])
-    flash(f"Autorizado por {linha['autorizador']}: {FUNCOES[funcao]['nome'].lower()} liberado por "
-          f"{LIBERADO_MINUTOS} minutos.", "ok")
+    log.info("“%s” autorizou “%s” a: %s (%s)", linha["autorizador"], g.usuario["usuario"], FUNCOES[funcao]["nome"],
+             descrever(linha))
+    flash(f"Autorizado por {linha['autorizador']}: {FUNCOES[funcao]['nome'].lower()} liberado {descrever(linha)}.", "ok")
     return redirect(voltar)
 
 
 def registrar(app):
     app.register_blueprint(bp)
+    app.after_request(_gastar_liberacoes)
     app.jinja_env.globals["permite"] = permite
     app.jinja_env.globals["pode_funcao"] = pode
     app.jinja_env.globals["mostrar_autorizar"] = mostrar_autorizar
