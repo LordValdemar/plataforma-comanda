@@ -468,7 +468,12 @@ def test_so_admin_e_editor_conectam_e_so_telas_da_propria_loja(logado):
 
     codigo = _codigo_da_tv(logado.application.test_client())
     assert entrar("caixa1").get(f"/tela/parear/{codigo}").status_code == 403
-    assert "Do dono" in entrar("editor1").get(f"/tela/parear/{codigo}").get_data(as_text=True)
+    editor = entrar("editor1")
+    assert "Do dono" in editor.get(f"/tela/parear/{codigo}").get_data(as_text=True)
+    # O editor tem o leitor de QR da TV e o campo do código na página de propagandas.
+    assert 'data-prefixo="/tela/parear/"' in editor.get("/").get_data(as_text=True)
+    resposta = postar(editor, "/telas/conectar", {"codigo": codigo.lower()}, pagina="/")
+    assert resposta.headers["Location"].endswith(f"/tela/parear/{codigo}")
     dono2 = entrar("dono2")
     assert "Do dono" not in dono2.get(f"/tela/parear/{codigo}").get_data(as_text=True)
     postar(dono2, f"/tela/parear/{codigo}", {"tela_id": str(tela_do_dono)}, pagina=f"/tela/parear/{codigo}")

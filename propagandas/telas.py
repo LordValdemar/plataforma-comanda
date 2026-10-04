@@ -157,9 +157,11 @@ def parear(codigo):
 
 
 @bp.route("/telas/conectar", methods=["POST"])
-@login_obrigatorio("admin")
+@login_obrigatorio()
 def conectar_por_codigo():
-    """Para quando a câmera não funciona: digita o código que aparece na TV."""
+    """Para quando a câmera não funciona: digita o código que aparece na TV (admin ou editor)."""
+    if g.usuario["papel"] not in ("admin", "editor"):
+        abort(403)
     codigo = "".join(c for c in request.form.get("codigo", "").upper() if c.isalnum())[:6]
     return redirect(url_for("telas.parear", codigo=codigo or "-"))
 

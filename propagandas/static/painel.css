@@ -189,3 +189,5 @@ button.link-discreto { background: none; color: #6b7385; text-decoration: underl
 .escolha-tela { margin: 8px 0 14px; }
 .escolha-tela label.marcar { border: 1px solid #e6e9f0; border-radius: 8px; padding: 12px; margin: 0 0 8px; }
 button.largo { width: 100%; padding: 12px; font-size: 1.05rem; }
+.conectar-tv details { margin: 0; border: 0; padding: 0; }
+.conectar-tv summary { font-size: 1rem; color: #1d2433; }

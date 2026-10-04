@@ -25,6 +25,27 @@
   </form>
 </section>
 
+<section class="conectar-tv">
+  <details>
+    <summary><b>📺 Conectar uma TV</b></summary>
+    <p class="u-mt8">Na TV, abra <span class="endereco">{{ url_for('exibicao.conectar', _external=True) }}</span>. Vai aparecer um QR code: leia com o celular e escolha a tela.</p>
+    <div class="leitor-qr">
+      <button type="button" id="abrir-camera" class="grande" data-prefixo="/tela/parear/" data-alvo="a TV">📷 Abrir a câmera e ler o QR code da TV</button>
+      <div id="leitor" hidden>
+        <video id="leitor-video" playsinline muted></video>
+        <p id="leitor-aviso" class="leitor-aviso"></p>
+        <button type="button" id="fechar-camera" class="secundario">Fechar a câmera</button>
+      </div>
+    </div>
+    <form action="{{ url_for('telas.conectar_por_codigo') }}" method="post" class="linha">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div><label for="codigo-tv">Ou digite o código de 6 letras que aparece na TV</label>
+        <input type="text" id="codigo-tv" name="codigo" maxlength="6" placeholder="Ex.: K7M2X9" autocapitalize="characters" autocomplete="off"></div>
+      <div class="fixo"><button type="submit" class="secundario">Conectar</button></div>
+    </form>
+  </details>
+</section>
+
 <div class="duas-colunas">
   <section>
     <h2>Adicionar propagandas</h2>
@@ -212,4 +233,8 @@
 </form>
 {% endif %}
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='propagandas.js') }}"></script>{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='propagandas.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/jsqr/jsQR.js') }}"></script>
+<script src="{{ url_for('static', filename='leitor_qr.js') }}"></script>
+{% endblock %}
