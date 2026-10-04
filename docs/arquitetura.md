@@ -105,5 +105,9 @@ por isso, a própria infraestrutura. Para levar uma mudança de regra às versõ
 python ferramentas/copiar_nucleo.py ../Comanda ../S
 ```
 
-A cópia leva `src/nucleo.json` (commit de origem e impressão digital) e `tests/test_nucleo.py`,
-que falha se alguém mudar a cópia à mão. Regras se mudam aqui e se copiam de novo.
+Uma versão local com as mesmas tabelas da plataforma pode receber também arquivos de
+`src/infrastructure` (escolhidos na primeira cópia com `--infra`; as seguintes lembram a lista).
+O Painel local usa os repositórios das propagandas e das telas.
+
+A cópia leva `src/nucleo.json` (commit de origem, arquivos e impressão digital) e
+`tests/test_nucleo.py`, que falha se alguém mudar a cópia à mão. Regras se mudam aqui e se copiam de novo.

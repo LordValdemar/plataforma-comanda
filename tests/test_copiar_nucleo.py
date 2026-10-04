@@ -40,6 +40,28 @@ def test_copia_e_confere(tmp_path):
     assert resultado.returncode != 0 and "mude lá e copie de novo" in resultado.stdout
 
 
+def test_infraestrutura_escolhida_vai_junto_e_fica_registrada(tmp_path):
+    ferramenta = _ferramenta()
+    destino = tmp_path / "painel"
+    (destino / ".git").mkdir(parents=True)
+    ferramenta.copiar(destino, ["sqlite/propagandas.py", "sqlite/datas.py"])
+    registro = json.loads((destino / "src" / "nucleo.json").read_text())
+    assert registro["infraestrutura"] == ["sqlite/datas.py", "sqlite/propagandas.py"]
+    assert (destino / "src" / "infrastructure" / "sqlite" / "propagandas.py").exists()
+    assert not (destino / "src" / "infrastructure" / "sqlite" / "comandas.py").exists()
+    ferramenta.copiar(destino)                                   # a próxima cópia lembra a lista
+    assert json.loads((destino / "src" / "nucleo.json").read_text())["infraestrutura"] == registro["infraestrutura"]
+    assert _rodar_teste_copiado(destino).returncode == 0
+    copiado = destino / "src" / "infrastructure" / "sqlite" / "propagandas.py"
+    copiado.write_text(copiado.read_text() + "\n# mudança local\n")
+    assert _rodar_teste_copiado(destino).returncode != 0         # a infraestrutura copiada também é conferida
+    import pytest
+
+    for errado in (["sqlite/nao_existe.py"], ["../../ferramentas/copiar_nucleo.py"]):
+        with pytest.raises(SystemExit, match="--infra"):
+            ferramenta.copiar(destino, errado)
+
+
 def test_so_copia_para_um_repositorio(tmp_path):
     import pytest
 
