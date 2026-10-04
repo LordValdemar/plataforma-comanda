@@ -70,43 +70,6 @@ def duracao_formatada(segundos):
     return f"{seg} s"
 
 
-# ---------------------------------------------------------------------------
-# Agendamento
-# ---------------------------------------------------------------------------
-
-def _no_horario(hora, inicio, fim):
-    inicio = inicio or "00:00"
-    fim = fim or "24:00"
-    if inicio <= fim:
-        return inicio <= hora < fim
-    # Faixa que vira a noite, ex.: 22:00 até 02:00.
-    return hora >= inicio or hora < fim
-
-
-def situacao(item, agora):
-    """Retorna (código, texto) dizendo se a propaganda está no ar agora e por quê.
-
-    Os dias da semana valem para o dia do relógio: numa faixa 22:00-02:00
-    marcada só na sexta, a parte depois da meia-noite cai no sábado.
-    """
-    hoje = agora.date().isoformat()
-    if not item["ativo"]:
-        return "inativa", "Inativa"
-    if item["inicio"] and hoje < item["inicio"]:
-        return "agendada", "Começa em " + datetime.fromisoformat(item["inicio"]).strftime("%d/%m/%Y")
-    if item["fim"] and hoje > item["fim"]:
-        return "encerrada", "Encerrada"
-    if str(agora.weekday()) not in (item["dias_semana"] or TODOS_OS_DIAS):
-        return "fora_do_dia", "Fora do dia"
-    if not _no_horario(agora.strftime("%H:%M"), item["hora_inicio"], item["hora_fim"]):
-        return "fora_do_horario", "Fora do horário"
-    return "no_ar", "No ar agora"
-
-
-def esta_no_ar(item, agora):
-    return situacao(item, agora)[0] == "no_ar"
-
-
 def offset_minutos(dia):
     """Diferença do fuso para UTC em minutos (ex.: -180 em São Paulo)."""
     return int(datetime(dia.year, dia.month, dia.day, 12, tzinfo=fuso()).utcoffset() / timedelta(minutes=1))

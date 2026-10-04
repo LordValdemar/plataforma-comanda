@@ -1,25 +1,26 @@
 from datetime import datetime
 
-from propagandas.agenda import resumo_dias, resumo_horario, situacao
+from propagandas.agenda import resumo_dias, resumo_horario
+from src.domain.painel import Propaganda
 
-BASE = {"ativo": 1, "inicio": None, "fim": None, "dias_semana": "0123456", "hora_inicio": None, "hora_fim": None}
+BASE = {"ativo": True, "inicio": None, "fim": None, "dias_semana": "0123456", "hora_inicio": None, "hora_fim": None}
 # 01/10/2026 é uma quinta-feira (weekday 3)
 QUINTA_9H = datetime(2026, 10, 1, 9, 0)
 
 
 def item(**campos):
-    return {**BASE, **campos}
+    return Propaganda(id=1, nome="p", arquivo="p.png", tipo="imagem", duracao=10, **{**BASE, **campos})
 
 
 def codigo(propaganda, agora=QUINTA_9H):
-    return situacao(propaganda, agora)[0]
+    return propaganda.situacao(agora)[0]
 
 
 def test_periodo_de_validade():
     assert codigo(item(inicio="2026-09-01", fim="2026-10-31")) == "no_ar"
     assert codigo(item(inicio="2026-10-02")) == "agendada"
     assert codigo(item(fim="2026-09-30")) == "encerrada"
-    assert codigo(item(ativo=0)) == "inativa"
+    assert codigo(item(ativo=False)) == "inativa"
 
 
 def test_dias_da_semana():

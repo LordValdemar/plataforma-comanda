@@ -3,7 +3,7 @@
 import hashlib
 import hmac
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import segno
 from flask import (
@@ -19,13 +19,15 @@ from flask import (
     url_for,
 )
 
+from src.domain.painel import Playlist, ServicoDePropagandas, TelaDaPlaylist
+from src.infrastructure.sqlite import RepositorioDePropagandasSQLite
+
 from . import agenda, db
 from .auth import EMPRESA_PRINCIPAL, csrf_isento
 
 bp = Blueprint("exibicao", __name__)
 
 UM_ANO = 365 * 24 * 3600
-MAX_REGISTROS_POR_ENVIO = 1000
 INTERVALO_CONTATO = 30  # segundos; evita gravar no banco a cada troca de propaganda
 
 
@@ -34,47 +36,37 @@ def empresa_ativa(empresa_id):
     return bool(linha and linha["ativa"])
 
 
-def propagandas_no_ar(empresa_id, tela=None):
-    """Propagandas da empresa que devem aparecer agora na tela (ou no player geral, se tela=None)."""
-    if not empresa_ativa(empresa_id):
-        return []  # empresa suspensa: a TV fica sem propagandas
-    conexao = db.obter()
-    agora = agenda.agora_local()
-    itens = conexao.execute(
-        "SELECT * FROM propagandas WHERE empresa_id = ? ORDER BY posicao, id", (empresa_id,)
-    ).fetchall()
-    permitidas = set()
-    if tela is not None:
-        permitidas = {
-            linha["propaganda_id"]
-            for linha in conexao.execute(
-                "SELECT propaganda_id FROM propaganda_destinos WHERE tela_id = ? OR grupo_id = ?",
-                (tela["id"], tela["grupo_id"]),
-            )
-        }
-    return [
-        item for item in itens
-        if agenda.esta_no_ar(item, agora) and (item["para_todas"] or item["id"] in permitidas)
-    ]
+def _servico(empresa_id):
+    repositorio = RepositorioDePropagandasSQLite(db.obter(), empresa_id)
+    # O relógio é lido a cada uso (lambda): os testes trocam agenda.agora_local.
+    return ServicoDePropagandas(repositorio, agenda.fuso(), relogio=lambda: agenda.agora_local())
 
 
-def _resposta_playlist(itens, letreiro, pausado=False):
+def _resposta_playlist(playlist):
     resposta = jsonify({
-        "pausado": pausado,
+        "pausado": playlist.pausado,
         "itens": [
             {
-                "id": item["id"],
-                "tipo": item["tipo"],
-                "url": url_for("exibicao.midia", arquivo=item["arquivo"]),
-                "duracao": item["duracao"],
-                "letreiro": item["letreiro"],  # None = usa o letreiro geral da resposta
+                "id": item.id,
+                "tipo": item.tipo,
+                "url": url_for("exibicao.midia", arquivo=item.arquivo),
+                "duracao": item.duracao,
+                "letreiro": item.letreiro,  # None = usa o letreiro geral da resposta
             }
-            for item in itens
+            for item in playlist.itens
         ],
-        "letreiro": letreiro,
+        "letreiro": playlist.letreiro,
     })
     resposta.headers["Cache-Control"] = "no-store"
     return resposta
+
+
+def playlist_da_empresa(empresa_id, tela=None):
+    """O que a tela mostra agora (tela None = o player geral). Empresa suspensa: nada."""
+    if not empresa_ativa(empresa_id):
+        return Playlist([], "")
+    para = None if tela is None else TelaDaPlaylist(tela["id"], tela["grupo_id"], tela["letreiro"])
+    return _servico(empresa_id).playlist(para)
 
 
 def _buscar_tela(codigo):
@@ -277,9 +269,7 @@ def player():
 
 @bp.route("/api/playlist")
 def playlist():
-    if db.ler_config(EMPRESA_PRINCIPAL, "pausado") == "1":
-        return _resposta_playlist([], "", pausado=True)
-    return _resposta_playlist(propagandas_no_ar(EMPRESA_PRINCIPAL), db.ler_config(EMPRESA_PRINCIPAL, "letreiro"))
+    return _resposta_playlist(playlist_da_empresa(EMPRESA_PRINCIPAL))
 
 
 # ---------------------------------------------------------------------------
@@ -306,29 +296,7 @@ def playlist_tela(codigo):
     if not aparelho_autorizado(tela):
         return _negado_api()
     _registrar_contato(tela)
-    if not empresa_ativa(tela["empresa_id"]):
-        return _resposta_playlist([], "")
-    if db.ler_config(tela["empresa_id"], "pausado") == "1":
-        return _resposta_playlist([], "", pausado=True)
-    letreiro = tela["letreiro"] if tela["letreiro"] else db.ler_config(tela["empresa_id"], "letreiro")
-    return _resposta_playlist(propagandas_no_ar(tela["empresa_id"], tela), letreiro)
-
-
-def _ler_registro(registro, agora, mais_antigo):
-    """Valida um registro de exibição enviado pela TV. Retorna (id, inicio_utc, duracao) ou None."""
-    if not isinstance(registro, dict):
-        return None
-    try:
-        propaganda_id = int(registro["propaganda_id"])
-        duracao = float(registro["duracao"])
-        inicio = datetime.fromisoformat(str(registro["inicio"]).replace("Z", "+00:00"))
-    except (KeyError, TypeError, ValueError):
-        return None
-    if inicio.tzinfo is None or not 0 < duracao <= 86400:
-        return None
-    if not mais_antigo <= inicio <= agora + timedelta(hours=1):  # relógio da TV muito errado
-        return None
-    return propaganda_id, agenda.para_texto_utc(inicio), round(duracao, 1)
+    return _resposta_playlist(playlist_da_empresa(tela["empresa_id"], tela))
 
 
 @bp.route("/api/tela/<codigo>/pulso", methods=["POST"])
@@ -353,35 +321,10 @@ def pulso(codigo):
     registros = dados.get("exibicoes") or []
     if not isinstance(registros, list):
         abort(400)
-    registros = registros[:MAX_REGISTROS_POR_ENVIO]
-
-    conexao = db.obter()
-    nomes = {
-        linha["id"]: linha["nome"]
-        for linha in conexao.execute("SELECT id, nome FROM propagandas WHERE empresa_id = ?", (tela["empresa_id"],))
-    }
-    agora = agenda.agora_utc()
-    mais_antigo = agora - timedelta(days=current_app.config["RETER_EXIBICOES_DIAS"])
-
-    linhas = []
-    for registro in registros:
-        lido = _ler_registro(registro, agora, mais_antigo)
-        if lido:
-            propaganda_id, inicio, duracao = lido
-            nome = nomes.get(propaganda_id, "(propaganda excluída)")
-            linhas.append((tela["empresa_id"], tela["id"], propaganda_id, nome, inicio, duracao))
-    with conexao:
-        # OR IGNORE: se a TV reenviar o mesmo registro (queda de rede), não duplica.
-        conexao.executemany(
-            "INSERT OR IGNORE INTO exibicoes (empresa_id, tela_id, propaganda_id, propaganda_nome, exibido_em, duracao) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            linhas,
-        )
-
-    exibindo = dados.get("exibindo")
-    nome_exibindo = nomes.get(exibindo) if isinstance(exibindo, int) else None
-    _registrar_contato(tela, exibindo=nome_exibindo)
-    return {"recebidos": len(registros), "gravados": len(linhas)}
+    propagandas = _servico(tela["empresa_id"])
+    recebidos, gravados = propagandas.registrar_exibicoes(tela["id"], registros, current_app.config["RETER_EXIBICOES_DIAS"])
+    _registrar_contato(tela, exibindo=propagandas.nome_exibindo(dados.get("exibindo")))
+    return {"recebidos": recebidos, "gravados": gravados}
 
 
 # ---------------------------------------------------------------------------

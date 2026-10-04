@@ -30,7 +30,8 @@ Regras:
 | 2. Comanda (dinheiro, itens, pagamentos, fechamento) | feita |
 | 3a. Permissões e autorizações por QR | feita |
 | 3b. Ponto | feita |
-| 3c. Painel de propagandas | a fazer |
+| 3c. Painel de propagandas: propagandas, agenda e o que vai para cada TV | feita |
+| 3c. Painel de propagandas: telas, grupos e conexão da TV | a fazer |
 | 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | a fazer |
 
 ## Comanda
@@ -75,3 +76,16 @@ Testes: `tests/unidade/test_permissoes_dominio.py` (regras, sem banco) e `tests/
 
 Testes: `tests/unidade/test_ponto_dominio.py` (regras, sem banco) e `tests/test_ponto_repositorio.py`
 (banco de verdade: 8 pessoas lendo o mesmo QR ao mesmo tempo, isolamento entre lojas).
+
+## Painel de propagandas
+
+- `src/domain/painel/propaganda.py`: a `Propaganda` e a agenda dela (datas, dias, faixa de horário que pode virar
+  a noite), os `Destinos` (telas e grupos; trocar, acrescentar ou tirar), a `Programacao` que se edita e a ordem.
+- `src/domain/painel/exibicao.py`: o registro de exibição que a TV manda (o que não faz sentido é ignorado).
+- `src/domain/painel/servico.py`: cadastro, edição, ações em lote, pausa geral, letreiro e a `Playlist` de cada tela.
+  Os arquivos (salvar e apagar do disco) ficam com a porta de entrada.
+- `src/infrastructure/sqlite/propagandas.py`: `propagandas`, `propaganda_destinos` e `exibicoes`, restrito a uma loja.
+- `propagandas/painel.py` e `propagandas/exibicao.py`: as rotas do painel e da TV.
+
+Testes: `tests/unidade/test_painel_dominio.py` (regras, sem banco) e `tests/test_propagandas_repositorio.py`
+(banco de verdade: isolamento entre lojas, TV reenviando os mesmos registros sem duplicar).
