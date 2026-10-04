@@ -401,6 +401,8 @@ def test_tv_se_conecta_pelo_qr_code(logado):
     assert resposta == {"pronto": True, "url": f"/tela/{tela['codigo']}"}
     assert tv.get(f"/tela/{tela['codigo']}").status_code == 200
     assert tv.get(f"/api/tela/{tela['codigo']}/playlist").status_code == 200
+    # A TV reiniciou e abriu o endereço único: vai direto para a tela dela.
+    assert tv.get("/tela").headers["Location"].endswith(f"/tela/{tela['codigo']}")
     # O código já foi usado.
     assert "venceu" in postar(logado, f"/tela/parear/{codigo}", {"tela_id": str(tela["id"])},
                               pagina="/telas", follow_redirects=True).get_data(as_text=True)

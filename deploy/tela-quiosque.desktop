@@ -2,11 +2,11 @@
 # RECOMENDADO: use o script deploy/raspberry/configurar-tela.sh, que gera este
 # atalho sozinho, espera o servidor ligar e evita a barra "Restaurar páginas?".
 #
-# Uso manual: copie para ~/.config/autostart/ e troque http://localhost:5000/player
+# Uso manual: copie para ~/.config/autostart/ e troque http://localhost:5000/tela
 # (nas duas ocorrências) pelo endereço da tela, visto no painel em "Telas".
 # Não use --incognito: o player guarda no navegador as exibições feitas sem rede.
 [Desktop Entry]
 Type=Application
 Name=Painel de Propagandas - Exibição
-Exec=sh -c "sleep 15; chromium --kiosk --noerrdialogs --disable-infobars --password-store=basic --autoplay-policy=no-user-gesture-required http://localhost:5000/player || chromium-browser --kiosk --noerrdialogs --disable-infobars --password-store=basic --autoplay-policy=no-user-gesture-required http://localhost:5000/player"
+Exec=sh -c "sleep 15; chromium --kiosk --noerrdialogs --disable-infobars --password-store=basic --autoplay-policy=no-user-gesture-required http://localhost:5000/tela || chromium-browser --kiosk --noerrdialogs --disable-infobars --password-store=basic --autoplay-policy=no-user-gesture-required http://localhost:5000/tela"
 X-GNOME-Autostart-enabled=true

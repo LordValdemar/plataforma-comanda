@@ -85,7 +85,7 @@ O roteador pode trocar o IP do servidor depois de uma reinicialização. Se isso
 1. No servidor ou no celular conectado ao Wi-Fi da loja, abra o endereço mostrado no passo 2 (ex.: `http://192.168.0.10:5000`).
 2. Informe o nome da empresa e crie o **usuário administrador**.
 3. Em **Minha conta**, ative a verificação em duas etapas.
-4. Em **Telas**, cadastre cada TV (ex.: “Balcão”, “Vitrine”). Cada uma recebe um endereço, como `http://192.168.0.10:5000/tela/Ab3dE5fG7hJk`.
+4. Em **Telas**, cadastre cada TV (ex.: “Balcão”, “Vitrine”). Para conectar uma TV, abra `http://192.168.0.10:5000/tela` no navegador dela e leia o QR code que aparece com o celular (entrando como administrador ou editor). A TV fica presa à tela escolhida; ao ligar de novo, o mesmo endereço `/tela` leva direto para as propagandas dela.
 5. Envie as propagandas.
 
 ---
@@ -101,7 +101,7 @@ Instale o **Raspberry Pi OS com área de trabalho** e, no Pi, rode com o seu usu
 ```bash
 sudo apt install -y git          # o Chromium já vem no Raspberry Pi OS com área de trabalho
 git clone https://github.com/LordValdemar/S.git painel-propagandas
-./painel-propagandas/deploy/raspberry/configurar-tela.sh http://192.168.0.10:5000/tela/Ab3dE5fG7hJk
+./painel-propagandas/deploy/raspberry/configurar-tela.sh http://192.168.0.10:5000/tela
 sudo reboot
 ```
 
@@ -185,7 +185,7 @@ Use se quiser **TVs em outras lojas**, o **webhook do Asaas instantâneo** ou **
 
 A partir daí:
 - **Para entrar no painel, use sempre `https://painel.sualoja.com.br`.** Com `COOKIE_SEGURO=1`, o login pelo endereço `http://192.168...` deixa de funcionar.
-- **As TVs da loja podem continuar no endereço local** (`http://192.168...`), que não depende da internet. TVs de outras lojas usam `https://painel.sualoja.com.br/tela/...`.
+- **As TVs da loja podem continuar no endereço local** (`http://192.168...`), que não depende da internet. TVs de outras lojas usam `https://painel.sualoja.com.br/tela`.
 - **Webhook do Asaas:** `https://painel.sualoja.com.br/webhooks/asaas` (veja o README, seção “Cobrança automática”).
 - **Exposto à internet, a segurança importa mais:** verificação em duas etapas para todos os administradores e senhas fortes.
 
@@ -230,4 +230,4 @@ Se mais tarde você quiser vender ou ter lojas em lugares diferentes:
 1. Instale na VPS seguindo [HOSPEDAGEM.md](HOSPEDAGEM.md).
 2. Copie o backup mais recente (`dados/backups/backup-....zip`) para a VPS e restaure.
 3. Copie as configurações do `configuracao.env` para `/etc/painel-propagandas/ambiente`.
-4. Atualize o endereço de cada TV para `https://seu-dominio/tela/...` (os códigos das telas continuam os mesmos).
+4. Em cada TV, abra `https://seu-dominio/tela` e conecte de novo pelo QR code.

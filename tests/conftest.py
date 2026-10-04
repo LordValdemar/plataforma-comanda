@@ -67,10 +67,14 @@ def logado(cliente):
 
 
 def conectar_tv(admin, tela_id, tv=None):
-    """Conecta um aparelho (tv; por padrão o próprio cliente do admin) à tela, como na loja:
-    a TV abre /tela, o celular de quem administra lê o código e escolhe a tela."""
+    """Conecta um aparelho à tela, como na loja: a TV abre /tela, o celular de quem administra
+    lê o código e escolhe a tela. O crachá vai para `tv` (por padrão, o próprio cliente do admin),
+    que assim pode fazer o papel da TV de várias telas nos testes."""
     tv = tv or admin
-    codigo = re.search(r'<p class="relogio">([A-Z0-9]{6})</p>', tv.get("/tela").get_data(as_text=True)).group(1)
+    aparelho = admin.application.test_client()  # aparelho novo: /tela mostra o QR code
+    codigo = re.search(r'<p class="relogio">([A-Z0-9]{6})</p>', aparelho.get("/tela").get_data(as_text=True)).group(1)
     postar(admin, f"/tela/parear/{codigo}", {"tela_id": str(tela_id)}, pagina=f"/tela/parear/{codigo}")
-    assert tv.get("/api/tela/conexao").get_json()["pronto"]
+    assert aparelho.get("/api/tela/conexao").get_json()["pronto"]
+    nome = f"tela_aparelho_{tela_id}"
+    tv.set_cookie(nome, aparelho.get_cookie(nome).value)
     return tv

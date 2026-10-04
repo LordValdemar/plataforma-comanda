@@ -158,8 +158,18 @@ def conectar_aparelho(conexao, pedido, tela):
 
 @bp.route("/tela")
 def conectar():
-    """Endereço único para as TVs: mostra um QR code; quem administra lê e escolhe a tela."""
+    """Endereço único para as TVs: mostra um QR code; quem administra lê e escolhe a tela.
+
+    TV já conectada (tem o crachá de uma tela) vai direto para as propagandas dela: o atalho
+    de quiosque da TV pode abrir sempre /tela, mesmo depois de reiniciar.
+    """
     conexao = db.obter()
+    prefixo = COOKIE_APARELHO.format("")
+    for nome, token in request.cookies.items():
+        if nome.startswith(prefixo) and nome[len(prefixo):].isdigit() and token:
+            tela = conexao.execute("SELECT * FROM telas WHERE id = ?", (int(nome[len(prefixo):]),)).fetchone()
+            if tela and tela["aparelho_hash"] and hmac.compare_digest(_hash(token), tela["aparelho_hash"]):
+                return redirect(url_for("exibicao.tela", codigo=tela["codigo"]))
     agora = agenda.agora_utc()
     with conexao:
         conexao.execute("DELETE FROM pareamentos WHERE criado_em < ?",

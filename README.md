@@ -111,12 +111,12 @@ python servidor.py
 
 1. Abra **http://localhost:5000/** (ou `http://IP-DO-COMPUTADOR:5000/` de outro aparelho da rede).
 2. Informe o nome da sua empresa e crie o **usuário administrador**. Essa tela só aparece uma vez. Esse usuário administra a sua empresa **e** a plataforma.
-3. Em **Telas**, cadastre cada TV (ex.: “Loja Centro: Balcão”). Cada uma recebe um **endereço próprio**, como `http://192.168.0.10:5000/tela/Ab3dE5fG7hJk`.
+3. Em **Telas**, cadastre cada TV (ex.: “Loja Centro: Balcão”). Para conectar, abra `http://192.168.0.10:5000/tela` na TV e leia o QR code com o celular (administrador ou editor). A TV fica presa à tela escolhida.
 4. Envie as propagandas. Em **Agendamento e telas**, escolha dias, horários e em quais telas cada uma aparece.
-5. Na TV, abra o endereço da tela e clique (ou aperte **F**) para tela cheia.
+5. Na TV, clique (ou aperte **F**) para tela cheia.
 6. Em **Minha conta**, ative a **verificação em duas etapas**.
 
-> O endereço da tela funciona como uma senha: quem não o tem não vê nem altera nada daquela tela. Se ele vazar, use **Gerar novo endereço**.
+> Cada tela funciona só no aparelho conectado a ela: abrir o endereço em outro aparelho leva para a página do QR code. Para trocar a TV, conecte a nova pelo QR code (a anterior é desligada) ou use **Desconectar aparelho** em **Telas**.
 >
 > O endereço geral `/player` continua funcionando, mas mostra só as propagandas da **sua** empresa marcadas para “Todas as telas” e **não** aparece no monitoramento nem nos relatórios.
 
@@ -195,7 +195,7 @@ mkdir -p ~/.config/autostart
 cp deploy/tela-quiosque.desktop ~/.config/autostart/
 ```
 
-Edite o arquivo e troque `http://localhost:5000/player` pelo **endereço da tela** (veja em **Telas** no painel). Se o servidor estiver em outro computador, use o IP dele.
+Edite o arquivo e troque `http://localhost:5000/player` por `http://localhost:5000/tela`. Na primeira vez, conecte a TV pelo QR code; depois ela abre direto nas propagandas. Se o servidor estiver em outro computador, use o IP dele.
 
 O modo quiosque também libera o **som dos vídeos**. Sem ele, os navegadores bloqueiam o som automático e os vídeos tocam mudos.
 
