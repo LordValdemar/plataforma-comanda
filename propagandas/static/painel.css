@@ -94,6 +94,9 @@ footer a { color: #6b7385; }
 .preco span { font-size: .9rem; font-weight: 400; color: #6b7385; }
 .bloqueado { text-align: center; }
 label.marcar { display: flex; gap: 8px; align-items: flex-start; color: #1d2433; font-size: .9rem; margin: 6px 0 14px; }
+.editar-usuario { margin: 0 0 6px; padding: 4px 10px; }
+.editar-usuario[open] { min-width: 240px; }
+.editar-usuario form { display: grid; gap: 6px; margin-top: 8px; }
 .permissao-extra { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
 /* Propagandas: pausa geral, lista compacta e ações em várias de uma vez */
 .pausa-geral { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-left: 6px solid #22a447; }

@@ -401,3 +401,15 @@ def test_nao_paga_a_mais_nem_depois_de_fechada(logado, app):
     with app.app_context():
         pagos = db.obter().execute("SELECT SUM(valor_centavos) FROM cmd_pagamentos WHERE comanda_id = ?", (comanda_id,)).fetchone()[0]
     assert pagos == 880
+
+
+def test_garcom_que_muda_de_papel_perde_o_fechar_conta(logado, app):
+    criar_pessoa(app, "maria", "garcom")
+    with app.app_context():
+        maria = db.obter().execute("SELECT id FROM usuarios WHERE usuario = 'maria'").fetchone()["id"]
+    postar_c(logado, f"/usuarios/{maria}/fecha-conta")
+    postar_c(logado, f"/usuarios/{maria}/editar", {"papel": "cozinha"})
+    postar_c(logado, f"/usuarios/{maria}/editar", {"papel": "garcom"})
+    with app.app_context():
+        linha = db.obter().execute("SELECT papel, fecha_conta FROM usuarios WHERE id = ?", (maria,)).fetchone()
+    assert (linha["papel"], linha["fecha_conta"]) == ("garcom", 0)
