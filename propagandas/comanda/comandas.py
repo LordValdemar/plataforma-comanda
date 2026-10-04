@@ -10,7 +10,15 @@ from .. import db, modulos
 from .base import auditar, ler_config, papel_exigido, pode, pode_fechar_conta
 from .cardapio import agrupar, produtos_ativos
 from .formatos import (
-    ValorInvalido, agora_utc, entrada_reais, hoje_local, intervalo_utc, ler_reais, para_texto_utc, porcentagem, reais,
+    ValorInvalido,
+    agora_utc,
+    entrada_reais,
+    hoje_local,
+    intervalo_utc,
+    ler_reais,
+    para_texto_utc,
+    porcentagem,
+    reais,
 )
 
 bp = Blueprint("comanda", __name__, url_prefix="/comanda")
