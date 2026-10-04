@@ -35,6 +35,7 @@ Regras:
 | 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | feita |
 | 5a. Cobrança e Asaas | feita |
 | 5b. Login e usuários | feita |
+| 6a. Cardápio da Comanda | feita |
 
 ## Comanda
 
@@ -96,6 +97,13 @@ Testes: `tests/unidade/test_ponto_dominio.py` (regras, sem banco) e `tests/test_
 Testes: `tests/unidade/test_painel_dominio.py` e `test_telas_dominio.py` (regras, sem banco),
 `tests/test_propagandas_repositorio.py` e `test_telas_repositorio.py` (banco de verdade: isolamento entre lojas,
 TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a ponta, 6 TVs disputando uma tela antiga).
+
+## Cardápio
+
+- `src/domain/cardapio`: categorias (em ordem) e produtos (preço, código de lançamento rápido, se vai para a
+  cozinha, fora do cardápio); `src/domain/ordem.py`: subir ou descer um item numa lista (também usado nas propagandas).
+- `src/infrastructure/sqlite/cardapio.py`: cmd_categorias e cmd_produtos; nome ou código repetido vira erro da regra.
+- `propagandas/comanda/cardapio.py`: as rotas.
 
 ## Cobrança e Asaas
 
