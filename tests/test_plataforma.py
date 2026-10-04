@@ -2,7 +2,8 @@
 login com o código da loja, cadastro aberto e assinatura pelo próprio cliente."""
 
 import re
-from datetime import date, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from test_cobranca import AsaasFalso
@@ -261,7 +262,8 @@ def test_cadastro_assinatura_troca_e_cancelamento(logado, asaas_falso):
     assert (loja["plano_id"], loja["asaas_assinatura_id"], loja["cobranca_automatica"]) == (planos["Comanda"], "sub_000001", 1)
     assinatura = next(corpo for metodo, caminho, corpo in asaas_falso.chamadas if caminho == "/subscriptions")
     assert assinatura["value"] == 79.9
-    assert assinatura["nextDueDate"] == (date.today() + timedelta(days=7)).isoformat()  # teste grátis
+    hoje_no_brasil = datetime.now(ZoneInfo("America/Sao_Paulo")).date()  # o relógio do servidor fica em UTC
+    assert assinatura["nextDueDate"] == (hoje_no_brasil + timedelta(days=7)).isoformat()  # teste grátis
     assert dono.get("/comanda/").status_code == 200
     assert dono.get("/telas").status_code == 402  # o plano Comanda não tem o Painel
 

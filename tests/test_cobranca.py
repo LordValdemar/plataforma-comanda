@@ -1,4 +1,5 @@
-from datetime import date, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -42,10 +43,15 @@ class AsaasFalso:
         return {"id": caminho.rsplit("/", 1)[-1], "deleted": metodo == "DELETE"}
 
 
+def hoje():
+    """Data no fuso do sistema (America/Sao_Paulo): entre 21h e meia-noite, o UTC já está no dia seguinte."""
+    return datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+
+
 def pagamento(id_="pay_1", status="PENDING", vencimento=None, valor=49.9):
     return {
         "object": "payment", "id": id_, "customer": "cus_000001", "subscription": "sub_000001",
-        "value": valor, "status": status, "dueDate": (vencimento or date.today()).isoformat(),
+        "value": valor, "status": status, "dueDate": (vencimento or hoje()).isoformat(),
         "invoiceUrl": f"https://sandbox.asaas.com/i/{id_}", "billingType": "UNDEFINED",
     }
 
@@ -85,7 +91,7 @@ def cliente_com_plano(logado, falso):
 
 def ativar(plataforma, empresa_id, vencimento=None):
     return postar(plataforma, f"/plataforma/empresas/{empresa_id}/cobranca/ativar",
-                  {"primeiro_vencimento": (vencimento or date.today()).isoformat()}, pagina="/plataforma/")
+                  {"primeiro_vencimento": (vencimento or hoje()).isoformat()}, pagina="/plataforma/")
 
 
 def webhook(cliente, evento, pagamento_, id_evento=None, token=TOKEN, verdadeiro=True):
@@ -143,7 +149,7 @@ def test_cnpj_invalido_e_recusado(cliente_com_plano):
 
 def test_ativar_cobranca_cria_cliente_e_assinatura(cliente_com_plano, falso):
     plataforma, empresa_id = cliente_com_plano
-    vencimento = date.today() + timedelta(days=10)
+    vencimento = hoje() + timedelta(days=10)
     falso.pagamentos = [pagamento(vencimento=vencimento)]
     ativar(plataforma, empresa_id, vencimento)
 
@@ -229,13 +235,13 @@ def test_atraso_suspende_e_pagamento_libera(cliente_com_plano):
     codigo = consultar(plataforma, "SELECT codigo FROM telas WHERE empresa_id = ?", empresa_id)[0]["codigo"]
 
     # Vencida há 2 dias: dentro da tolerância (5), só avisa
-    resposta = webhook(plataforma, "PAYMENT_OVERDUE", pagamento(status="OVERDUE", vencimento=date.today() - timedelta(days=2)))
+    resposta = webhook(plataforma, "PAYMENT_OVERDUE", pagamento(status="OVERDUE", vencimento=hoje() - timedelta(days=2)))
     assert resposta.get_json()["resultado"] is None
     assert empresa(plataforma, empresa_id)["ativa"] == 1
     assert "fatura vencida" in mercado.get("/").get_data(as_text=True)
 
     # Vencida há 6 dias: suspende
-    vencida = pagamento(status="OVERDUE", vencimento=date.today() - timedelta(days=6))
+    vencida = pagamento(status="OVERDUE", vencimento=hoje() - timedelta(days=6))
     assert webhook(plataforma, "PAYMENT_OVERDUE", vencida, id_evento="evt_2").get_json()["resultado"] == "suspensa"
     e = empresa(plataforma, empresa_id)
     assert (e["ativa"], e["motivo_suspensao"]) == (0, "inadimplencia")
@@ -251,7 +257,7 @@ def test_atraso_suspende_e_pagamento_libera(cliente_com_plano):
     assert novo_login.get("/").headers["Location"].endswith("/pagamento")
 
     # Pagou: libera sozinho
-    pago = {**vencida, "status": "RECEIVED", "paymentDate": date.today().isoformat()}
+    pago = {**vencida, "status": "RECEIVED", "paymentDate": hoje().isoformat()}
     assert webhook(plataforma, "PAYMENT_RECEIVED", pago).get_json()["resultado"] == "reativada"
     assert empresa(plataforma, empresa_id)["ativa"] == 1
     assert mercado.get("/").status_code == 200
@@ -286,11 +292,11 @@ def test_suspensao_manual_nao_e_desfeita_pelo_pagamento(cliente_com_plano):
 def test_tolerancia_vence_com_o_passar_dos_dias(cliente_com_plano):
     plataforma, empresa_id = cliente_com_plano
     ativar(plataforma, empresa_id)
-    webhook(plataforma, "PAYMENT_OVERDUE", pagamento(status="OVERDUE", vencimento=date.today() - timedelta(days=1)))
+    webhook(plataforma, "PAYMENT_OVERDUE", pagamento(status="OVERDUE", vencimento=hoje() - timedelta(days=1)))
     assert empresa(plataforma, empresa_id)["ativa"] == 1
     with plataforma.application.app_context():
         conexao = db.obter()
-        assert cobranca.avaliar_inadimplencia(conexao, empresa_id, hoje=date.today() + timedelta(days=5)) == "suspensa"
+        assert cobranca.avaliar_inadimplencia(conexao, empresa_id, hoje=hoje() + timedelta(days=5)) == "suspensa"
 
 
 def test_sem_bloqueio_automatico_nao_suspende(cliente_com_plano):
@@ -299,14 +305,14 @@ def test_sem_bloqueio_automatico_nao_suspende(cliente_com_plano):
     postar(plataforma, f"/plataforma/empresas/{empresa_id}/cobranca",
            {"plano_id": str(empresa(plataforma, empresa_id)["plano_id"]), "documento": "11222333000181"},
            pagina="/plataforma/")  # sem "cobranca_automatica"
-    webhook(plataforma, "PAYMENT_OVERDUE", pagamento(status="OVERDUE", vencimento=date.today() - timedelta(days=30)))
+    webhook(plataforma, "PAYMENT_OVERDUE", pagamento(status="OVERDUE", vencimento=hoje() - timedelta(days=30)))
     assert empresa(plataforma, empresa_id)["ativa"] == 1
 
 
 def test_sincronizacao_traz_faturas_perdidas(cliente_com_plano, falso):
     plataforma, empresa_id = cliente_com_plano
     ativar(plataforma, empresa_id)
-    falso.pagamentos = [pagamento("pay_a", "RECEIVED"), pagamento("pay_b", "OVERDUE", date.today() - timedelta(days=9))]
+    falso.pagamentos = [pagamento("pay_a", "RECEIVED"), pagamento("pay_b", "OVERDUE", hoje() - timedelta(days=9))]
     with plataforma.application.app_context():
         cobranca.sincronizar_todas()
     assert {f["asaas_id"] for f in consultar(plataforma, "SELECT asaas_id FROM faturas")} == {"pay_a", "pay_b"}
@@ -316,7 +322,7 @@ def test_sincronizacao_traz_faturas_perdidas(cliente_com_plano, falso):
 def test_empresa_principal_nunca_e_suspensa(logado, falso):
     with logado.application.app_context():
         conexao = db.obter()
-        cobranca.gravar_fatura(conexao, 1, pagamento(status="OVERDUE", vencimento=date.today() - timedelta(days=60)))
+        cobranca.gravar_fatura(conexao, 1, pagamento(status="OVERDUE", vencimento=hoje() - timedelta(days=60)))
         with conexao:
             conexao.execute("UPDATE empresas SET cobranca_automatica = 1 WHERE id = 1")
         assert cobranca.avaliar_inadimplencia(conexao, 1) is None
@@ -365,7 +371,7 @@ def test_aviso_falso_de_pagamento_nao_libera_cliente(cliente_com_plano, falso):
     """Mesmo com o token certo, um "pago" falso é desmentido pela consulta à API do Asaas."""
     plataforma, empresa_id = cliente_com_plano
     ativar(plataforma, empresa_id)
-    vencida = pagamento(status="OVERDUE", vencimento=date.today() - timedelta(days=10))
+    vencida = pagamento(status="OVERDUE", vencimento=hoje() - timedelta(days=10))
     webhook(plataforma, "PAYMENT_OVERDUE", vencida)
     assert empresa(plataforma, empresa_id)["ativa"] == 0
 
@@ -403,11 +409,11 @@ def test_fatura_cancelada_no_asaas_sai_do_sistema(cliente_com_plano, falso):
     """Se o aviso de cancelamento se perder, a sincronização corrige (e não suspende à toa)."""
     plataforma, empresa_id = cliente_com_plano
     ativar(plataforma, empresa_id)
-    webhook(plataforma, "PAYMENT_OVERDUE", pagamento("pay_3", "OVERDUE", date.today() - timedelta(days=2)))
+    webhook(plataforma, "PAYMENT_OVERDUE", pagamento("pay_3", "OVERDUE", hoje() - timedelta(days=2)))
     falso.pagamentos = []  # cancelada no Asaas; o aviso nunca chegou
     with plataforma.application.app_context():
         cobranca.sincronizar_todas()
-        assert cobranca.avaliar_inadimplencia(db.obter(), empresa_id, hoje=date.today() + timedelta(days=30)) is None
+        assert cobranca.avaliar_inadimplencia(db.obter(), empresa_id, hoje=hoje() + timedelta(days=30)) is None
     assert consultar(plataforma, "SELECT status FROM faturas WHERE asaas_id = 'pay_3'")[0]["status"] == "DELETED"
     assert empresa(plataforma, empresa_id)["ativa"] == 1
 
