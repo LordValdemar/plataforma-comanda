@@ -164,6 +164,10 @@ def test_sem_o_modulo_nao_pode():
     so_painel = Pessoa(9, "caixa", modulos_da_pessoa("caixa", False, {"painel"}))
     assert so_painel.modulos == frozenset()
     assert TabelaDePermissoes().nivel("fechar_conta", so_painel) == NAO
+    admin_so_comanda = Pessoa(10, "admin", modulos_da_pessoa("admin", False, {"comanda"}))
+    assert TabelaDePermissoes().nivel("fechar_conta", admin_so_comanda) == SIM
+    assert TabelaDePermissoes().nivel("telas", admin_so_comanda) == NAO          # a loja não tem o Painel
+    assert "telas" not in TabelaDePermissoes().funcoes_que_pode_autorizar(admin_so_comanda)
     assert modulos_da_pessoa("editor", True, LOJA) == frozenset(LOJA)   # quem opera a plataforma abre tudo
 
 
