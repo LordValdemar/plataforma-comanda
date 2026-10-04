@@ -363,3 +363,41 @@ def test_so_garcom_recebe_a_permissao_de_fechar(logado, app):
     with app.app_context():
         chef = db.obter().execute("SELECT id FROM usuarios WHERE usuario = 'chef'").fetchone()["id"]
     assert postar_c(logado, f"/usuarios/{chef}/fecha-conta").status_code == 400
+
+
+def test_taxa_arredonda_meio_centavo_para_cima_e_relatorio_bate_com_o_cupom(logado, app):
+    from propagandas.comanda import formatos, relatorios
+    from propagandas.comanda.formatos import hoje_local
+
+    # Arredondamento comercial: o round() do Python daria 100 (meio para o par).
+    assert formatos.porcentagem(1005, 10) == 101
+    assert formatos.porcentagem(1004, 10) == 100
+    assert formatos.porcentagem(999, 12.5) == 125      # 124,875 → 125
+    assert formatos.porcentagem(1, 10) == 0
+
+    produto = criar_produto(logado, "Pão de queijo", "10,05")
+    comanda_id = abrir_comanda(logado, 7)
+    postar_c(logado, f"/comanda/{comanda_id}/itens", {f"qtd_{produto}": "1"})
+    pagina = logado.get(f"/comanda/{comanda_id}/fechar").get_data(as_text=True)
+    assert "R$ 1,01" in pagina and "R$ 11,06" in pagina                 # taxa e total
+    postar_c(logado, f"/comanda/{comanda_id}/fechar", {"acao": "pagar", "forma": "pix", "valor": "11,06"})
+    postar_c(logado, f"/comanda/{comanda_id}/fechar", {"acao": "finalizar"})
+    with app.app_context():
+        comanda = db.obter().execute("SELECT * FROM cmd_comandas WHERE id = ?", (comanda_id,)).fetchone()
+        assert (comanda["status"], comanda["total_centavos"], comanda["taxa_centavos"]) == ("fechada", 1106, 101)
+        resumo = relatorios.resumo(db.obter(), 1, hoje_local(), hoje_local())
+    assert resumo["faturamento"] == 1106 and resumo["taxa"] == 101
+
+
+def test_nao_paga_a_mais_nem_depois_de_fechada(logado, app):
+    produto = criar_produto(logado, "Suco", "8,00", cozinha=False)
+    comanda_id = abrir_comanda(logado, 8)
+    postar_c(logado, f"/comanda/{comanda_id}/itens", {f"qtd_{produto}": "1"})  # 8,00 + 0,80
+    postar_c(logado, f"/comanda/{comanda_id}/fechar", {"acao": "pagar", "forma": "credito", "valor": "8,80"})
+    # Já paga: outro pagamento (mesmo em dinheiro) é recusado.
+    postar_c(logado, f"/comanda/{comanda_id}/fechar", {"acao": "pagar", "forma": "dinheiro", "valor": "5"})
+    postar_c(logado, f"/comanda/{comanda_id}/fechar", {"acao": "finalizar"})
+    postar_c(logado, f"/comanda/{comanda_id}/fechar", {"acao": "pagar", "forma": "pix", "valor": "1"})
+    with app.app_context():
+        pagos = db.obter().execute("SELECT SUM(valor_centavos) FROM cmd_pagamentos WHERE comanda_id = ?", (comanda_id,)).fetchone()[0]
+    assert pagos == 880

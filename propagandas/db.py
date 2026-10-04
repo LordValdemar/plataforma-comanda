@@ -425,6 +425,10 @@ MIGRACOES = [
     """
     ALTER TABLE telas ADD COLUMN fechada_em TEXT;
     """,
+    # 12 - Comanda: a taxa de serviço exata do cupom fica gravada ao fechar (os relatórios usam ela).
+    """
+    ALTER TABLE cmd_comandas ADD COLUMN taxa_centavos INTEGER;
+    """,
 ]
 
 
