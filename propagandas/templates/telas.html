@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 {% block titulo %}Telas{% endblock %}
 {% block conteudo %}
+<div id="aviso-offline" data-atualizar>
 {% if offline %}
   <div class="aviso erro">⚠️ {{ offline }} tela(s) sem comunicação. Verifique se a TV está ligada e conectada à rede.</div>
 {% endif %}
+</div>
 
 <section>
   <h2>Cadastrar tela{% if empresa.limite_telas is not none %} <span class="dica">({{ uso.telas }} de {{ empresa.limite_telas }} do seu plano)</span>{% endif %}</h2>
@@ -49,7 +51,7 @@
           <strong>{{ t.nome }}</strong>
           {% if t.grupo_nome %}<span class="selo">{{ t.grupo_nome }}</span>{% endif %}
         </div>
-        <div class="u-f3 u-dir">
+        <div class="u-f3 u-dir" id="status-{{ t.id }}" data-atualizar>
           {% if not t.ultimo_contato %}
             <span class="status">Nunca conectou</span>
           {% elif online[t.id] %}
@@ -60,11 +62,11 @@
           <span class="dica">· {% if t.fechada_em and not online[t.id] %}janela fechada {{ t.fechada_em|tempo_desde }}{% else %}último contato {{ t.ultimo_contato|tempo_desde }}{% endif %}</span>
         </div>
       </div>
-      <div class="resumo">
+      <div class="resumo" id="exibindo-{{ t.id }}" data-atualizar>
         {% if t.exibindo and online[t.id] %}▶ Exibindo agora: <strong>{{ t.exibindo }}</strong> · {% endif %}
         {% if t.ultimo_ip %}IP {{ t.ultimo_ip }}{% endif %}
       </div>
-      <div class="resumo">
+      <div class="resumo" id="aparelho-{{ t.id }}" data-atualizar>
         {% if t.aparelho_hash %}📺 Aparelho conectado{% if t.pareada_em %} desde {{ t.pareada_em|data_local }}{% endif %}
         {% elif t.aceita_link %}📺 Aguardando a TV que já usa o endereço antigo (ela se conecta sozinha)
         {% else %}<span class="selo alerta">Nenhum aparelho conectado</span> Na TV, abra o endereço /tela e leia o QR code.{% endif %}

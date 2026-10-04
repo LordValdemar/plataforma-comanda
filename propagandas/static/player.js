@@ -8,7 +8,7 @@ const URL_PLAYLIST = document.body.dataset.api;
 const URL_PULSO = document.body.dataset.pulso;   // vazio no player geral (/player)
 const CHAVE_PENDENTES = "exibicoes-pendentes:" + URL_PULSO;
 const MAX_PENDENTES = 20000;                     // ~2 dias de exibições sem rede
-const INTERVALO_PULSO = 60 * 1000;
+const INTERVALO_PULSO = 30 * 1000;   // sinal de vida (o painel considera offline após 75 s sem sinal)
 const INICIO = Date.now();
 const UM_DIA = 24 * 60 * 60 * 1000;
 

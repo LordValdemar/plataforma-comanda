@@ -22,7 +22,7 @@ from .auth import EMPRESA_PRINCIPAL
 
 log = logging.getLogger("propagandas.alertas")
 
-ONLINE_SEGUNDOS = 180  # a TV manda sinal de vida a cada minuto
+ONLINE_SEGUNDOS = 75  # a TV manda sinal de vida a cada 30 s: offline depois de dois sinais perdidos
 
 
 def canais_da_empresa(empresa, config):
