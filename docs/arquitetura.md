@@ -32,7 +32,7 @@ Regras:
 | 3b. Ponto | feita |
 | 3c. Painel de propagandas: propagandas, agenda e o que vai para cada TV | feita |
 | 3c. Painel de propagandas: telas, grupos e conexão da TV | feita |
-| 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | em andamento |
+| 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | feita |
 
 ## Comanda
 

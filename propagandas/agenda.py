@@ -54,9 +54,11 @@ def tempo_desde(texto_utc):
 
 
 def local_formatado(texto_utc):
+    """Texto UTC do banco (ou datetime com fuso) → "dd/mm/aaaa hh:mm" no fuso da loja."""
     if not texto_utc:
         return "-"
-    return de_texto_utc(texto_utc).astimezone(fuso()).strftime("%d/%m/%Y %H:%M")
+    momento = texto_utc if isinstance(texto_utc, datetime) else de_texto_utc(texto_utc)
+    return momento.astimezone(fuso()).strftime("%d/%m/%Y %H:%M")
 
 
 def duracao_formatada(segundos):
