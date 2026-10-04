@@ -11,11 +11,12 @@ Fluxo do cliente:
 
 import logging
 import re
-from datetime import timedelta
 
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, url_for
 
-from . import agenda, asaas, cobranca, db, modulos
+from src.domain.cobranca import ErroDeCobranca, ErroNoGateway
+
+from . import asaas, cobranca, db, modulos
 from .auth import EMPRESA_PRINCIPAL, ErroUsuario, _buscar_usuario, _entrar, criar_usuario, existe_usuario, login_obrigatorio
 
 bp = Blueprint("conta", __name__)
@@ -158,53 +159,16 @@ def assinar(plano_id):
     dias = current_app.config["TESTE_GRATIS_DIAS"]
 
     if request.method == "POST":
-        documento = cobranca.so_numeros(request.form.get("documento") or empresa["documento"])
-        email = (request.form.get("email") or empresa["email_cobranca"]).strip()[:200]
-        erro = None
-        if not asaas.configurado():
-            erro = "A assinatura pelo site ainda não está disponível. Fale com o suporte para ativar o seu plano."
-        elif not cobranca.documento_valido(documento):
-            erro = "Informe um CPF ou CNPJ válido (vai na fatura)."
-        elif "@" not in email:
-            erro = "Informe um e-mail válido para receber as faturas."
-        if erro:
-            flash(erro, "erro")
-            return redirect(url_for("conta.assinar", plano_id=plano_id))
-        with conexao:
-            conexao.execute("UPDATE empresas SET documento = ?, email_cobranca = ? WHERE id = ?",
-                            (documento, email, g.empresa_id))
         try:
-            if empresa["asaas_assinatura_id"]:
-                # Troca de plano: o Asaas muda o valor das próximas faturas (e das em aberto).
-                asaas.atualizar_assinatura(empresa["asaas_assinatura_id"], plano["preco_centavos"], f"Plano {plano['nome']}")
-            else:
-                cliente_id = empresa["asaas_cliente_id"] or asaas.criar_cliente(
-                    empresa["nome"], documento, email, cobranca.referencia(g.empresa_id))["id"]
-                with conexao:
-                    conexao.execute("UPDATE empresas SET asaas_cliente_id = ? WHERE id = ?", (cliente_id, g.empresa_id))
-                vencimento = agenda.agora_local().date() + timedelta(days=dias)
-                assinatura = asaas.criar_assinatura(cliente_id, plano["preco_centavos"], vencimento.isoformat(),
-                                                    f"Plano {plano['nome']}", cobranca.referencia(g.empresa_id))
-                with conexao:
-                    conexao.execute("UPDATE empresas SET asaas_assinatura_id = ? WHERE id = ?", (assinatura["id"], g.empresa_id))
-        except asaas.ErroAsaas as erro_asaas:
-            log.warning("Assinatura da empresa %s recusada pelo Asaas: %s", g.empresa_id, erro_asaas)
-            flash(f"Não foi possível concluir a assinatura: {erro_asaas}", "erro")
-            return redirect(url_for("conta.assinar", plano_id=plano_id))
-        anterior = empresa["plano_id"]
-        with conexao:
-            conexao.execute(
-                "UPDATE empresas SET plano_id = ?, cobranca_automatica = 1, limite_telas = ?, limite_mb = ? WHERE id = ?",
-                (plano["id"], plano["limite_telas"], plano["limite_mb"], g.empresa_id),
+            plano_novo, acao = cobranca.servico().assinar(
+                g.empresa_id, plano["id"], request.form.get("documento"), request.form.get("email"), dias,
+                gateway_configurado=asaas.configurado(),
             )
-        try:
-            cobranca.sincronizar(conexao, _empresa())  # traz a primeira fatura
-        except asaas.ErroAsaas:
-            log.exception("Assinatura criada, mas a primeira sincronização falhou")
-        acao = "trocou para o" if anterior else "assinou o"
-        log.info("“%s” %s plano “%s” (empresa %s)", g.usuario["usuario"], acao, plano["nome"], g.empresa_id)
-        cobranca._avisar_plataforma(f"💳 “{empresa['nome']}” {acao} plano {plano['nome']} ({cobranca.reais(plano['preco_centavos'])}/mês).")
-        flash(f"Plano {plano['nome']} ativo! Os módulos já estão liberados.", "ok")
+        except ErroDeCobranca as erro:
+            flash(str(erro), "erro")
+            return redirect(url_for("conta.assinar", plano_id=plano_id))
+        log.info("“%s” %s plano “%s” (empresa %s)", g.usuario["usuario"], acao, plano_novo.nome, g.empresa_id)
+        flash(f"Plano {plano_novo.nome} ativo! Os módulos já estão liberados.", "ok")
         return redirect(url_for("conta.inicio"))
 
     return render_template("assinar.html", plano=plano, empresa=empresa, dias=dias,
@@ -215,23 +179,14 @@ def assinar(plano_id):
 @bp.route("/loja/cancelar", methods=["POST"])
 @login_obrigatorio("admin")
 def cancelar():
-    conexao = db.obter()
     empresa = _empresa()
     if not empresa["plano_id"]:
         return redirect(url_for("conta.inicio"))
-    if empresa["asaas_assinatura_id"]:
-        try:
-            asaas.cancelar_assinatura(empresa["asaas_assinatura_id"])
-        except asaas.ErroAsaas as erro:
-            flash(f"Não foi possível cancelar agora ({erro}). Tente de novo ou fale com o suporte.", "erro")
-            return redirect(url_for("conta.inicio"))
-    with conexao:
-        conexao.execute(
-            "UPDATE empresas SET plano_id = NULL, asaas_assinatura_id = NULL, cobranca_automatica = 0 WHERE id = ?",
-            (g.empresa_id,),
-        )
-    cobranca.avaliar_inadimplencia(conexao, g.empresa_id)
+    try:
+        cobranca.servico().desistir(g.empresa_id)
+    except ErroNoGateway as erro:
+        flash(f"Não foi possível cancelar agora ({erro}). Tente de novo ou fale com o suporte.", "erro")
+        return redirect(url_for("conta.inicio"))
     log.info("“%s” cancelou a assinatura da empresa %s", g.usuario["usuario"], g.empresa_id)
-    cobranca._avisar_plataforma(f"✖️ “{empresa['nome']}” cancelou a assinatura.")
     flash("Assinatura cancelada. Nenhuma nova fatura será gerada. Os dados da loja continuam guardados.", "ok")
     return redirect(url_for("conta.inicio"))

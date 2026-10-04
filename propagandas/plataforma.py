@@ -151,7 +151,7 @@ def excluir(empresa_id):
     if empresa["asaas_assinatura_id"]:
         # Sem isso o Asaas continuaria cobrando um cliente que não existe mais.
         try:
-            asaas.cancelar_assinatura(empresa["asaas_assinatura_id"])
+            cobranca.servico().cancelar_no_gateway(empresa_id)
         except asaas.ErroAsaas as erro:
             flash(f"Não foi possível cancelar a assinatura no Asaas ({erro}). A empresa não foi excluída.", "erro")
             return redirect(url_for("plataforma.lista"))

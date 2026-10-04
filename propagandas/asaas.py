@@ -1,16 +1,16 @@
-"""Cliente da API v3 do Asaas (https://docs.asaas.com).
+"""Asaas na porta de entrada: a chave e o endereço vêm da configuração do app.
 
-Só a biblioteca padrão do Python. As chamadas passam por `_enviar`, que os
-testes substituem por um Asaas falso.
+Os pedidos e respostas ficam em src/infrastructure/asaas.py (ClienteAsaas). As chamadas passam
+por `_enviar`, que os testes substituem por um Asaas falso.
 """
 
-import json
 import logging
-import urllib.error
-import urllib.request
 from urllib.parse import urlencode
 
 from flask import current_app
+
+from src.domain.cobranca import ErroNoGateway
+from src.infrastructure.asaas import ClienteAsaas, enviar_http
 
 log = logging.getLogger("propagandas.asaas")
 
@@ -18,43 +18,13 @@ URLS = {
     "sandbox": "https://api-sandbox.asaas.com/v3",
     "producao": "https://api.asaas.com/v3",
 }
-USER_AGENT = "PainelPropagandas/1.0"  # o Asaas exige o cabeçalho User-Agent
-
-
-class ErroAsaas(Exception):
-    """Erro devolvido pelo Asaas (mensagem pronta para mostrar na tela)."""
+ErroAsaas = ErroNoGateway   # nome antigo, usado pelas telas e pelos testes
+_enviar = enviar_http
 
 
 def configurado(config=None):
     config = config or current_app.config
     return bool(config["ASAAS_API_KEY"])
-
-
-def _enviar(metodo, url, chave, corpo=None):
-    dados = json.dumps(corpo).encode() if corpo is not None else None
-    pedido = urllib.request.Request(
-        url,
-        data=dados,
-        method=metodo,
-        headers={
-            "access_token": chave,
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": USER_AGENT,
-        },
-    )
-    try:
-        with urllib.request.urlopen(pedido, timeout=30) as resposta:
-            return json.loads(resposta.read() or b"{}")
-    except urllib.error.HTTPError as erro:
-        try:
-            detalhes = json.loads(erro.read() or b"{}")
-            mensagem = "; ".join(e.get("description", "") for e in detalhes.get("errors", [])) or str(erro)
-        except ValueError:
-            mensagem = str(erro)
-        raise ErroAsaas(mensagem) from erro
-    except urllib.error.URLError as erro:
-        raise ErroAsaas(f"não foi possível falar com o Asaas ({erro.reason})") from erro
 
 
 def chamar(metodo, caminho, corpo=None, parametros=None):
@@ -68,56 +38,32 @@ def chamar(metodo, caminho, corpo=None, parametros=None):
     return _enviar(metodo, url, config["ASAAS_API_KEY"], corpo)
 
 
-# ---------------------------------------------------------------------------
-# Operações usadas pelo sistema
-# ---------------------------------------------------------------------------
+def cliente():
+    """O Asaas como o domínio o vê (GatewayDeCobranca). `chamar` é lido a cada uso: os testes podem trocá-lo."""
+    return ClienteAsaas(lambda *args, **kwargs: chamar(*args, **kwargs))
+
+
+# Atalhos com os nomes de antes.
 
 def criar_cliente(nome, documento, email, referencia):
-    return chamar("POST", "/customers", {
-        "name": nome,
-        "cpfCnpj": documento,
-        "email": email or None,
-        "externalReference": referencia,
-        "notificationDisabled": False,  # o Asaas avisa o cliente sobre faturas
-    })
+    return cliente().criar_cliente(nome, documento, email, referencia)
 
 
 def criar_assinatura(cliente_id, valor_centavos, primeiro_vencimento, descricao, referencia):
-    return chamar("POST", "/subscriptions", {
-        "customer": cliente_id,
-        "billingType": "UNDEFINED",  # o cliente escolhe PIX, boleto ou cartão na fatura
-        "value": valor_centavos / 100,
-        "nextDueDate": primeiro_vencimento,
-        "cycle": "MONTHLY",
-        "description": descricao,
-        "externalReference": referencia,
-    })
+    return cliente().criar_assinatura(cliente_id, valor_centavos, primeiro_vencimento, descricao, referencia)
 
 
 def atualizar_assinatura(assinatura_id, valor_centavos, descricao):
-    return chamar("PUT", f"/subscriptions/{assinatura_id}", {
-        "value": valor_centavos / 100,
-        "description": descricao,
-        "updatePendingPayments": True,  # aplica também às faturas ainda não pagas
-    })
+    return cliente().atualizar_assinatura(assinatura_id, valor_centavos, descricao)
 
 
 def cancelar_assinatura(assinatura_id):
-    return chamar("DELETE", f"/subscriptions/{assinatura_id}")
+    return cliente().cancelar_assinatura(assinatura_id)
 
 
-def faturas_da_assinatura(assinatura_id, max_paginas=20):
-    """Todas as faturas da assinatura (a API devolve em páginas de até 100)."""
-    faturas = []
-    for pagina in range(max_paginas):
-        resposta = chamar("GET", f"/subscriptions/{assinatura_id}/payments",
-                          parametros={"limit": 100, "offset": pagina * 100})
-        faturas.extend(resposta.get("data", []))
-        if not resposta.get("hasMore"):
-            return faturas
-    raise ErroAsaas("a assinatura tem faturas demais para sincronizar")
+def faturas_da_assinatura(assinatura_id):
+    return cliente().faturas_da_assinatura(assinatura_id)
 
 
 def buscar_fatura(fatura_id):
-    """Situação atual de uma fatura, direto do Asaas (fonte da verdade)."""
-    return chamar("GET", f"/payments/{fatura_id}")
+    return cliente().buscar_fatura(fatura_id)

@@ -33,6 +33,8 @@ Regras:
 | 3c. Painel de propagandas: propagandas, agenda e o que vai para cada TV | feita |
 | 3c. Painel de propagandas: telas, grupos e conexão da TV | feita |
 | 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | feita |
+| 5a. Cobrança e Asaas | feita |
+| 5b. Login e usuários | a fazer |
 
 ## Comanda
 
@@ -94,6 +96,20 @@ Testes: `tests/unidade/test_ponto_dominio.py` (regras, sem banco) e `tests/test_
 Testes: `tests/unidade/test_painel_dominio.py` e `test_telas_dominio.py` (regras, sem banco),
 `tests/test_propagandas_repositorio.py` e `test_telas_repositorio.py` (banco de verdade: isolamento entre lojas,
 TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a ponta, 6 TVs disputando uma tela antiga).
+
+## Cobrança e Asaas
+
+- `src/domain/cobranca`: planos, a empresa cobrada, a fatura (vinda do Asaas, com o link sempre https), a regra
+  de suspender e reativar por atraso (suspensão manual nunca é desfeita sozinha) e o serviço: assinar, trocar,
+  cancelar, sincronizar e o webhook. O conteúdo do webhook nunca é usado como verdade: a fatura é consultada no Asaas.
+- `src/domain/cobranca/gateway.py`: o que o domínio precisa do Asaas. `src/infrastructure/asaas.py` implementa
+  (monta os pedidos, pagina as faturas, transforma erros em mensagens).
+- `src/domain/documentos.py`: CPF e CNPJ.
+- `src/infrastructure/sqlite/cobranca.py`: planos, dados de cobrança das empresas, faturas e eventos do webhook.
+- `propagandas/cobranca.py`, `conta.py` (assinatura pelo cliente) e `plataforma.py`: as rotas.
+
+Testes: `tests/unidade/test_cobranca_dominio.py` (Asaas e banco falsos, data controlada) e
+`tests/test_cobranca_repositorio.py` (banco de verdade e o cliente do Asaas com o HTTP substituído).
 
 ## Versões locais
 
