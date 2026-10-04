@@ -113,7 +113,8 @@ TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a pont
 - `src/domain/relatorios/vendas.py`: o resumo de vendas da Comanda (faturamento, ticket médio, taxa de serviço,
   formas de pagamento, produtos, garçons, cancelados) e as linhas da planilha.
 - `src/domain/relatorios/exibicoes.py`: o resumo de exibições do Painel (por propaganda, tela e dia) e a planilha.
-- `src/infrastructure/sqlite/relatorios.py`: as consultas, sempre de uma loja só.
+- `src/infrastructure/sqlite/vendas.py` e `exibicoes.py`: as consultas, sempre de uma loja só (o Painel local
+  copia `exibicoes.py`).
 - `propagandas/comanda/relatorios.py` e `propagandas/relatorios.py`: as rotas e o CSV (com BOM, para o Excel).
 
 Testes: `tests/unidade/test_relatorios_dominio.py` e `tests/test_relatorios_repositorio.py` (comanda antiga sem taxa
