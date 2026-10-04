@@ -29,6 +29,7 @@ SO_ADMINISTRACAO = re.compile(
     r"^cobranca\.(salvar|ativar|cancelar|sincronizar|atualizar|novo)|"
     r"^comanda_cardapio\.(nova|novo|alterar)|^comanda\.(cancelar|reabrir|fechamento)$|"
     r"^auth\.(usuarios|novo_usuario|editar_usuario|excluir_usuario|desativar_2fa_usuario|alternar_fecha_conta)$|"
+    r"^permissoes\.configurar$|"
     r"^ponto\.(ajustes|qr_ajustes|equipe|salvar_pessoa|desconectar_pessoa|relatorio_csv)$|"
     r"^conta\.(assinar|cancelar)$"
 )

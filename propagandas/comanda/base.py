@@ -8,7 +8,7 @@ from functools import wraps
 
 from flask import abort, g, request
 
-from .. import db
+from .. import db, permissoes
 from ..auth import login_obrigatorio
 
 
@@ -35,16 +35,30 @@ def papel_exigido(*papeis):
     return decorador
 
 
+def exigir_funcao(nome):
+    """Libera a rota conforme a tela de Permissões da loja (ver permissoes.FUNCOES)."""
+    def decorador(funcao):
+        protegida = permissoes.exigir(nome)(funcao)
+
+        @wraps(funcao)
+        def com_api(*args, **kwargs):
+            if g.usuario is None and "/api/" in request.path:
+                return {"erro": "faça login de novo"}, 401
+            return protegida(*args, **kwargs)
+
+        com_api.funcao_exigida = nome
+        return com_api
+    return decorador
+
+
 def pode(*papeis):
     """Para os templates: o usuário logado tem um destes papéis (ou é administrador)?"""
     return g.usuario is not None and (g.usuario["papel"] == "admin" or g.usuario["papel"] in papeis)
 
 
 def pode_fechar_conta():
-    """Caixa e administrador fecham contas; o garçom, só se o administrador autorizou."""
-    if pode("caixa"):
-        return True
-    return g.usuario is not None and g.usuario["papel"] == "garcom" and bool(g.usuario["fecha_conta"])
+    """Para os botões: fecha contas (ou pode, pedindo autorização). Quem decide é a tela de Permissões."""
+    return permissoes.permite("fechar_conta")
 
 
 def ler_config(chave, padrao=""):
@@ -59,5 +73,6 @@ def auditar(conexao, acao, detalhe="", comanda_id=None):
     """Registra quem fez o quê (cancelamentos, descontos...). Chame dentro da transação da mudança."""
     conexao.execute(
         "INSERT INTO cmd_auditoria (empresa_id, usuario_id, comanda_id, acao, detalhe) VALUES (?, ?, ?, ?, ?)",
-        (g.empresa_id, g.usuario["id"] if g.usuario is not None else None, comanda_id, acao, detalhe),
+        (g.empresa_id, g.usuario["id"] if g.usuario is not None else None, comanda_id, acao,
+         f"{detalhe} (autorizado por {g.autorizado_por})" if g.get("autorizado_por") else detalhe),
     )

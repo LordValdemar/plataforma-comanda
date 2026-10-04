@@ -6,8 +6,7 @@ from datetime import date, timedelta
 
 from flask import Blueprint, Response, g, render_template, request
 
-from . import agenda, db, modulos
-from .auth import login_obrigatorio
+from . import agenda, db, modulos, permissoes
 
 bp = Blueprint("relatorios", __name__)
 bp.before_request(modulos.exigir("painel"))  # só para lojas com o Painel no plano
@@ -41,7 +40,7 @@ def _where(de, ate, tela_id):
 
 
 @bp.route("/relatorios")
-@login_obrigatorio()
+@permissoes.exigir("relatorios")
 def resumo():
     de, ate, tela_id = _ler_filtros()
     where, parametros = _where(de, ate, tela_id)
@@ -88,7 +87,7 @@ def resumo():
 
 
 @bp.route("/relatorios.csv")
-@login_obrigatorio()
+@permissoes.exigir("relatorios")
 def exportar():
     """Uma linha por dia, tela e propaganda. Abre direto no Excel (separador ;)."""
     de, ate, tela_id = _ler_filtros()

@@ -5,7 +5,7 @@ import sqlite3
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
 
 from .. import db, modulos
-from .base import papel_exigido
+from .base import exigir_funcao
 from .formatos import ValorInvalido, entrada_reais, ler_reais
 
 bp = Blueprint("comanda_cardapio", __name__, url_prefix="/comanda/cardapio")
@@ -74,7 +74,7 @@ def _produto(conexao, produto_id):
 
 
 @bp.route("/")
-@papel_exigido()
+@exigir_funcao("cardapio")
 def lista():
     conexao = db.obter()
     categorias = conexao.execute(
@@ -91,7 +91,7 @@ def lista():
 
 
 @bp.route("/categorias", methods=["POST"])
-@papel_exigido()
+@exigir_funcao("cardapio")
 def nova_categoria():
     nome = request.form.get("nome", "").strip()
     conexao = db.obter()
@@ -114,7 +114,7 @@ def nova_categoria():
 
 
 @bp.route("/categorias/<int:categoria_id>", methods=["POST"])
-@papel_exigido()
+@exigir_funcao("cardapio")
 def alterar_categoria(categoria_id):
     conexao = db.obter()
     categoria = _categoria(conexao, categoria_id)
@@ -150,7 +150,7 @@ def alterar_categoria(categoria_id):
 
 
 @bp.route("/produtos", methods=["POST"])
-@papel_exigido()
+@exigir_funcao("cardapio")
 def novo_produto():
     conexao = db.obter()
     try:
@@ -171,7 +171,7 @@ def novo_produto():
 
 
 @bp.route("/produtos/<int:produto_id>", methods=["POST"])
-@papel_exigido()
+@exigir_funcao("cardapio")
 def alterar_produto(produto_id):
     conexao = db.obter()
     produto = _produto(conexao, produto_id)

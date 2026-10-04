@@ -178,7 +178,7 @@ def test_garcom_so_cancela_antes_da_cozinha(cliente, app):
         with conexao:
             conexao.execute("UPDATE cmd_itens SET status = 'preparando' WHERE id = ?", (segundo,))
     resposta = postar_c(cliente, f"/comanda/{comanda_id}/itens/{segundo}", {"acao": "cancelar", "motivo": "x"}, follow_redirects=True)
-    assert "Peça ao caixa" in resposta.get_data(as_text=True)
+    assert "Peça a quem pode cancelar" in resposta.get_data(as_text=True)
     # O garçom não fecha conta.
     assert cliente.get(f"/comanda/{comanda_id}/fechar").status_code == 403
 

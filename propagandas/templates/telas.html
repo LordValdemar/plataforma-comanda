@@ -24,6 +24,7 @@
   <p class="dica u-mb0">Depois de cadastrar, conecte a TV (abaixo). O painel passa a mostrar se ela está ligada, o que está exibindo e quantas vezes cada propaganda passou.</p>
 </section>
 
+{% if permite('conectar_tv') %}
 <section>
   <h2>Conectar uma TV</h2>
   <ol class="passos">
@@ -39,6 +40,7 @@
     <div class="fixo"><button type="submit" class="secundario">Conectar</button></div>
   </form>
 </section>
+{% endif %}
 
 <section>
   <h2>Telas ({{ telas|length }})</h2>
@@ -141,6 +143,7 @@
   {% endif %}
 </section>
 
+{% if g.usuario.papel == 'admin' %}
 <section>
   <h2>Alertas de tela offline</h2>
   {% if canais.nomes %}
@@ -153,4 +156,5 @@
     <button class="secundario" {% if not canais.nomes %}disabled{% endif %}>Enviar alerta de teste</button>
   </form>
 </section>
+{% endif %}
 {% endblock %}

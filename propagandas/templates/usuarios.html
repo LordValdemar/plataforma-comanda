@@ -28,6 +28,7 @@
 
 <section>
   <h2>Usuários cadastrados</h2>
+  <p><a class="botao secundario" href="{{ url_for('permissoes.configurar') }}">🔐 Permissões: o que cada papel pode fazer</a></p>
   <p class="dica">Endereço de entrada da equipe: <span class="endereco">{{ url_for('auth.entrar_na_loja', slug=g.usuario.empresa_slug, _external=True) }}</span></p>
   <div class="tabela-rolagem">
   <table>

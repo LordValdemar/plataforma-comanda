@@ -429,6 +429,21 @@ MIGRACOES = [
     """
     ALTER TABLE cmd_comandas ADD COLUMN taxa_centavos INTEGER;
     """,
+    # 13 - autorizações por QR code: quem tem a permissão libera, por alguns minutos, quem precisa
+    # de autorização (ex.: o caixa libera o garçom a fechar uma conta). Fica o registro de quem foi.
+    """
+    CREATE TABLE autorizacoes (
+        id             INTEGER PRIMARY KEY,
+        empresa_id     INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+        codigo         TEXT    NOT NULL UNIQUE,
+        funcao         TEXT    NOT NULL,
+        autorizado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+        usado_por      INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+        criado_em      TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        usado_em       TEXT
+    );
+    CREATE INDEX autorizacoes_empresa ON autorizacoes(empresa_id, usado_em);
+    """,
 ]
 
 

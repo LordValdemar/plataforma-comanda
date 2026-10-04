@@ -7,7 +7,7 @@ import unicodedata
 
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, url_for
 
-from . import alertas, db, exibicao, modulos, planos
+from . import alertas, db, exibicao, modulos, permissoes, planos
 from .auth import login_obrigatorio
 
 bp = Blueprint("telas", __name__)
@@ -51,7 +51,7 @@ def _buscar(conexao, tela_id):
 
 
 @bp.route("/telas")
-@login_obrigatorio("admin")
+@permissoes.exigir("telas")
 def lista():
     conexao = db.obter()
     telas = conexao.execute(
@@ -79,7 +79,7 @@ def lista():
 
 
 @bp.route("/telas/nova", methods=["POST"])
-@login_obrigatorio("admin")
+@permissoes.exigir("telas")
 def nova():
     conexao = db.obter()
     nome = request.form.get("nome", "").strip()[:100]
@@ -101,7 +101,7 @@ def nova():
 
 
 @bp.route("/telas/<int:tela_id>/atualizar", methods=["POST"])
-@login_obrigatorio("admin")
+@permissoes.exigir("telas")
 def atualizar(tela_id):
     conexao = db.obter()
     tela = _buscar(conexao, tela_id)
@@ -118,7 +118,7 @@ def atualizar(tela_id):
 
 
 @bp.route("/telas/<int:tela_id>/novo-codigo", methods=["POST"])
-@login_obrigatorio("admin")
+@permissoes.exigir("telas")
 def trocar_codigo(tela_id):
     conexao = db.obter()
     tela = _buscar(conexao, tela_id)
@@ -131,11 +131,9 @@ def trocar_codigo(tela_id):
 
 
 @bp.route("/tela/parear/<codigo>", methods=["GET", "POST"])
-@login_obrigatorio()
+@permissoes.exigir("conectar_tv")
 def parear(codigo):
     """Aberta pelo celular ao ler o QR code da TV: escolhe qual tela aquela TV vai mostrar."""
-    if g.usuario["papel"] not in ("admin", "editor"):
-        abort(403)
     conexao = db.obter()
     pedido = exibicao.pedido_por_codigo(conexao, codigo)
     if pedido is None:
@@ -152,22 +150,20 @@ def parear(codigo):
             exibicao.conectar_aparelho(conexao, pedido, tela)
             log.info("“%s” conectou um aparelho à tela “%s”", g.usuario["usuario"], tela["nome"])
             flash(f"TV conectada à tela “{tela['nome']}”. Em alguns segundos ela começa a mostrar as propagandas.", "ok")
-            return redirect(url_for("telas.lista") if g.usuario["papel"] == "admin" else url_for("painel.lista"))
+            return redirect(url_for("telas.lista") if permissoes.pode("telas") else url_for("painel.lista"))
     return render_template("tela_parear.html", codigo=pedido["codigo"], telas=telas)
 
 
 @bp.route("/telas/conectar", methods=["POST"])
-@login_obrigatorio()
+@permissoes.exigir("conectar_tv")
 def conectar_por_codigo():
     """Para quando a câmera não funciona: digita o código que aparece na TV (admin ou editor)."""
-    if g.usuario["papel"] not in ("admin", "editor"):
-        abort(403)
     codigo = "".join(c for c in request.form.get("codigo", "").upper() if c.isalnum())[:6]
     return redirect(url_for("telas.parear", codigo=codigo or "-"))
 
 
 @bp.route("/telas/<int:tela_id>/desconectar-aparelho", methods=["POST"])
-@login_obrigatorio("admin")
+@permissoes.exigir("telas")
 def desconectar_aparelho(tela_id):
     conexao = db.obter()
     tela = _buscar(conexao, tela_id)
@@ -179,7 +175,7 @@ def desconectar_aparelho(tela_id):
 
 
 @bp.route("/telas/<int:tela_id>/excluir", methods=["POST"])
-@login_obrigatorio("admin")
+@permissoes.exigir("telas")
 def excluir(tela_id):
     conexao = db.obter()
     tela = _buscar(conexao, tela_id)
@@ -191,7 +187,7 @@ def excluir(tela_id):
 
 
 @bp.route("/grupos/novo", methods=["POST"])
-@login_obrigatorio("admin")
+@permissoes.exigir("telas")
 def novo_grupo():
     conexao = db.obter()
     nome = request.form.get("nome", "").strip()[:100]
@@ -208,7 +204,7 @@ def novo_grupo():
 
 
 @bp.route("/grupos/<int:grupo_id>/excluir", methods=["POST"])
-@login_obrigatorio("admin")
+@permissoes.exigir("telas")
 def excluir_grupo(grupo_id):
     conexao = db.obter()
     grupo = conexao.execute("SELECT * FROM grupos WHERE id = ? AND empresa_id = ?", (grupo_id, g.empresa_id)).fetchone()

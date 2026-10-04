@@ -30,32 +30,37 @@
         {% if not sem_ponto %}
         {% if 'painel' in g.modulos %}
           <a href="{{ url_for('painel.lista') }}" {% if ep == 'painel.lista' %}class="atual"{% endif %}>Propagandas</a>
-          {% if papel == 'admin' %}
+          {% if permite('telas') %}
             <a href="{{ url_for('telas.lista') }}" {% if ep == 'telas.lista' %}class="atual"{% endif %}>Telas</a>
           {% endif %}
-          <a href="{{ url_for('relatorios.resumo') }}" {% if ep == 'relatorios.resumo' %}class="atual"{% endif %}>Relatórios</a>
+          {% if permite('relatorios') %}
+            <a href="{{ url_for('relatorios.resumo') }}" {% if ep == 'relatorios.resumo' %}class="atual"{% endif %}>Relatórios</a>
+          {% endif %}
         {% endif %}
         {% if 'comanda' in g.modulos %}
           {% if papel in ('admin', 'caixa', 'garcom') %}
             <a href="{{ url_for('comanda.lista') }}" {% if ep.startswith('comanda.') and ep != 'comanda.historico' %}class="atual"{% endif %}>Comandas</a>
           {% endif %}
-          {% if papel in ('admin', 'caixa', 'cozinha') %}
+          {% if permite('cozinha') %}
             <a href="{{ url_for('comanda_cozinha.tela') }}" {% if ep == 'comanda_cozinha.tela' %}class="atual"{% endif %}>Cozinha</a>
           {% endif %}
-          {% if papel in ('admin', 'caixa') %}
+          {% if permite('vendas') %}
             <a href="{{ url_for('comanda.historico') }}" {% if ep == 'comanda.historico' %}class="atual"{% endif %}>Fechadas</a>
             <a href="{{ url_for('comanda_relatorios.vendas') }}" {% if ep == 'comanda_relatorios.vendas' %}class="atual"{% endif %}>Vendas</a>
           {% endif %}
-          {% if papel == 'admin' %}
+          {% if permite('cardapio') %}
             <a href="{{ url_for('comanda_cardapio.lista') }}" {% if ep.startswith('comanda_cardapio.') or ep == 'comanda_ajustes.pagina' %}class="atual"{% endif %}>Cardápio</a>
           {% endif %}
+        {% endif %}
+        {% if mostrar_autorizar() %}
+          <a href="{{ url_for('permissoes.autorizar') }}" {% if ep == 'permissoes.autorizar' %}class="atual"{% endif %}>Autorizar</a>
         {% endif %}
         {% endif %}
         {% if g.get('ponto_exige') %}
           <a href="{{ url_for('ponto.meu') }}" {% if ep == 'ponto.meu' %}class="atual"{% endif %}>{{ '● Ponto aberto' if g.ponto_aberto else 'Ponto' }}</a>
         {% endif %}
         {% if papel == 'admin' %}
-          <a href="{{ url_for('auth.usuarios') }}" {% if ep == 'auth.usuarios' %}class="atual"{% endif %}>Usuários</a>
+          <a href="{{ url_for('auth.usuarios') }}" {% if ep in ('auth.usuarios', 'permissoes.configurar') %}class="atual"{% endif %}>Usuários</a>
           <a href="{{ url_for('ponto.equipe') }}" {% if ep.startswith('ponto.') %}class="atual"{% endif %}>Ponto</a>
           <a href="{{ url_for('empresa.configuracoes') }}" {% if ep == 'empresa.configuracoes' %}class="atual"{% endif %}>Empresa</a>
           <a href="{{ url_for('conta.inicio') }}" {% if ep.startswith('conta.') %}class="atual"{% endif %}>Minha loja</a>

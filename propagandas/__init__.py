@@ -15,7 +15,23 @@ from logging.handlers import TimedRotatingFileHandler
 from flask import Flask, flash, g, redirect, request, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from . import agenda, auth, cobranca, comanda, conta, db, empresa, exibicao, legal, painel, plataforma, ponto, relatorios, telas
+from . import (
+    agenda,
+    auth,
+    cobranca,
+    comanda,
+    conta,
+    db,
+    empresa,
+    exibicao,
+    legal,
+    painel,
+    permissoes,
+    plataforma,
+    ponto,
+    relatorios,
+    telas,
+)
 
 PASTA_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -143,6 +159,7 @@ def create_app(sobrescrever=None):
     app.register_blueprint(cobranca.bp)
     app.register_blueprint(conta.bp)
     comanda.registrar(app)
+    permissoes.registrar(app)
 
     app.jinja_env.filters["tempo_desde"] = agenda.tempo_desde
     app.jinja_env.filters["data_local"] = agenda.local_formatado

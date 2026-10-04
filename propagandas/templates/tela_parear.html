@@ -17,7 +17,7 @@
       <button type="submit" class="largo">Conectar esta TV</button>
     </form>
   {% else %}
-    <p>Sua loja ainda não tem telas cadastradas.{% if g.usuario.papel == 'admin' %} Cadastre em <a href="{{ url_for('telas.lista') }}">Telas</a> e leia o QR code da TV de novo.{% else %} Peça ao administrador para cadastrar.{% endif %}</p>
+    <p>Sua loja ainda não tem telas cadastradas.{% if permite('telas') %} Cadastre em <a href="{{ url_for('telas.lista') }}">Telas</a> e leia o QR code da TV de novo.{% else %} Peça ao administrador para cadastrar.{% endif %}</p>
   {% endif %}
 </section>
 {% endblock %}

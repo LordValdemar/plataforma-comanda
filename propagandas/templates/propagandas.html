@@ -25,6 +25,7 @@
   </form>
 </section>
 
+{% if permite('conectar_tv') %}
 <section class="conectar-tv">
   <details>
     <summary><b>📺 Conectar uma TV</b></summary>
@@ -45,6 +46,7 @@
     </form>
   </details>
 </section>
+{% endif %}
 
 <div class="duas-colunas">
   <section>
