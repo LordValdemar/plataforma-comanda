@@ -5,7 +5,7 @@ import os
 
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, url_for
 
-from . import agenda, alertas, asaas, cobranca, db, modulos
+from . import agenda, alertas, asaas, cadastro, cobranca, db, modulos
 from .auth import EMPRESA_PRINCIPAL, ErroUsuario, criar_usuario, plataforma_obrigatoria
 from .planos import MB
 
@@ -82,12 +82,19 @@ def nova():
     if not nome:
         flash("Informe o nome da empresa.", "erro")
         return redirect(url_for("plataforma.lista"))
+    try:
+        dados = cadastro.ler_formulario(request.form)
+    except cadastro.CadastroInvalido as erro:
+        flash(f"Empresa não criada: {erro}", "erro")
+        return redirect(url_for("plataforma.lista"))
     with conexao:
         empresa_id = conexao.execute(
             "INSERT INTO empresas (nome, slug, limite_telas, limite_mb, modulos_liberados) VALUES (?, ?, ?, ?, ?)",
             (nome, db.gerar_slug(conexao, nome), _ler_limite("limite_telas"), _ler_limite("limite_mb"),
              modulos.do_formulario(request.form)),
         ).lastrowid
+        for coluna, valor in dados.items():  # colunas fixas (cadastro.CAMPOS e documento)
+            conexao.execute(f"UPDATE empresas SET {coluna} = ? WHERE id = ?", (valor, empresa_id))
     try:
         criar_usuario(conexao, empresa_id, request.form.get("usuario", ""), request.form.get("senha", ""), "admin")
     except ErroUsuario as erro:

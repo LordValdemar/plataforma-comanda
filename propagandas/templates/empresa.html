@@ -4,9 +4,36 @@
 {% block conteudo %}
 <section>
   <h2>Dados da empresa</h2>
-  <form method="post">
+  <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="campo"><label for="nome">Nome</label><input type="text" id="nome" name="nome" value="{{ empresa.nome }}" maxlength="100" required></div>
+    <div class="campo"><label for="nome">Nome da empresa no cadastro da plataforma</label><input type="text" id="nome" name="nome" value="{{ empresa.nome }}" maxlength="100" required></div>
+    <div class="campo"><label for="razao_social">Razão social <span class="dica">(é o nome que aparece no topo do sistema, nas comandas, no cupom e na tela do ponto)</span></label><input type="text" id="razao_social" name="razao_social" value="{{ empresa.razao_social }}" maxlength="120"></div>
+    <div class="campo"><label for="documento">CPF ou CNPJ</label><input type="text" id="documento" name="documento" value="{{ documento }}" maxlength="18" inputmode="numeric" placeholder="00.000.000/0000-00"></div>
+    <div class="linha">
+      <div><label for="email_empresa">E-mail</label><input type="email" id="email_empresa" name="email" value="{{ empresa.email }}" maxlength="120"></div>
+      <div><label for="telefone">Telefone</label><input type="text" id="telefone" name="telefone" value="{{ empresa.telefone }}" maxlength="20" inputmode="tel" placeholder="(99) 98436-9495"></div>
+    </div>
+    <h3>Endereço</h3>
+    <div class="linha">
+      <div class="u-b140"><label for="cep">CEP</label><input type="text" id="cep" name="cep" value="{{ empresa.cep }}" maxlength="9" inputmode="numeric" placeholder="00000-000"></div>
+      <div><label for="logradouro">Rua / avenida</label><input type="text" id="logradouro" name="logradouro" value="{{ empresa.logradouro }}" maxlength="120"></div>
+      <div class="u-b90"><label for="numero">Número</label><input type="text" id="numero" name="numero" value="{{ empresa.numero }}" maxlength="20"></div>
+    </div>
+    <div class="linha">
+      <div><label for="complemento">Complemento</label><input type="text" id="complemento" name="complemento" value="{{ empresa.complemento }}" maxlength="60"></div>
+      <div><label for="bairro">Bairro</label><input type="text" id="bairro" name="bairro" value="{{ empresa.bairro }}" maxlength="60"></div>
+    </div>
+    <div class="linha">
+      <div><label for="cidade">Cidade</label><input type="text" id="cidade" name="cidade" value="{{ empresa.cidade }}" maxlength="60"></div>
+      <div class="u-b90"><label for="uf">UF</label><select id="uf" name="uf"><option value=""></option>
+        {% for uf in UFS %}<option {{ 'selected' if uf == empresa.uf }}>{{ uf }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="campo">
+      <label for="logo">Logo <span class="dica">(PNG ou JPG, até 300 KB; sai no cupom da Comanda; preto e branco imprime melhor na térmica)</span></label>
+      {% if empresa.logo %}<img src="{{ empresa.logo }}" alt="Logo atual" class="logo-empresa">{% endif %}
+      <input type="file" id="logo" name="logo" accept="image/png,image/jpeg">
+    </div>
+    <h3>Acesso da equipe</h3>
     <div class="campo">
       <label for="codigo">Código da loja (usado no endereço de entrada da equipe)</label>
       <input type="text" id="codigo" name="codigo" value="{{ empresa.slug }}" maxlength="40" required
@@ -26,6 +53,12 @@
     </div>
     <button type="submit">Salvar</button>
   </form>
+  {% if empresa.logo %}
+  <form method="post" class="u-mt12" data-confirmar="Remover o logo da empresa?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button name="acao" value="remover_logo" class="secundario">Remover o logo</button>
+  </form>
+  {% endif %}
 </section>
 
 <section>

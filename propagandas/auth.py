@@ -157,7 +157,7 @@ def _verificar_csrf():
 
 def _buscar_usuario(conexao, usuario_id):
     return conexao.execute(
-        "SELECT u.*, e.nome AS empresa_nome, e.slug AS empresa_slug, e.ativa AS empresa_ativa, e.motivo_suspensao "
+        "SELECT u.*, COALESCE(NULLIF(e.razao_social, ''), e.nome) AS empresa_nome, e.slug AS empresa_slug, e.ativa AS empresa_ativa, e.motivo_suspensao "
         "FROM usuarios u JOIN empresas e ON e.id = u.empresa_id WHERE u.id = ?",
         (usuario_id,),
     ).fetchone()

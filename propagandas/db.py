@@ -460,6 +460,20 @@ MIGRACOES = [
     UPDATE cmd_comandas SET garcom_id = aberta_por
      WHERE aberta_por IN (SELECT id FROM usuarios WHERE papel = 'garcom');
     """,
+    # 16 - cadastro completo da empresa (vai no cupom da Comanda): contato, endereço e logo.
+    """
+    ALTER TABLE empresas ADD COLUMN razao_social TEXT NOT NULL DEFAULT '';
+    ALTER TABLE empresas ADD COLUMN email TEXT NOT NULL DEFAULT '';
+    ALTER TABLE empresas ADD COLUMN telefone TEXT NOT NULL DEFAULT '';
+    ALTER TABLE empresas ADD COLUMN cep TEXT NOT NULL DEFAULT '';
+    ALTER TABLE empresas ADD COLUMN logradouro TEXT NOT NULL DEFAULT '';
+    ALTER TABLE empresas ADD COLUMN numero TEXT NOT NULL DEFAULT '';
+    ALTER TABLE empresas ADD COLUMN complemento TEXT NOT NULL DEFAULT '';
+    ALTER TABLE empresas ADD COLUMN bairro TEXT NOT NULL DEFAULT '';
+    ALTER TABLE empresas ADD COLUMN cidade TEXT NOT NULL DEFAULT '';
+    ALTER TABLE empresas ADD COLUMN uf TEXT NOT NULL DEFAULT '';
+    ALTER TABLE empresas ADD COLUMN logo TEXT NOT NULL DEFAULT '';
+    """,
 ]
 
 

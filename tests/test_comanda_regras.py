@@ -483,7 +483,7 @@ def test_cor_da_comanda_segue_a_cozinha(logado, app):
     assert cartao() == ""                                   # entregue: volta à cor normal
 
 
-def test_dados_e_logo_da_loja_no_cupom(logado, app):
+def test_cadastro_da_empresa_vai_no_cupom(logado, app):
     import io
 
     from conftest import PNG
@@ -491,20 +491,32 @@ def test_dados_e_logo_da_loja_no_cupom(logado, app):
     lanche, _ = preparar(logado)
     comanda_id = abrir_comanda(logado, 3, mesa="01")
     postar_c(logado, f"/comanda/{comanda_id}/itens", {f"qtd_{lanche}": "2"})
-    postar_c(logado, "/comanda/ajustes/", {
-        "nome_estabelecimento": "Comercial Gustavo", "cnpj": "36.740.823/0001-09", "email": "sac@exemplo.com.br",
-        "endereco": "Travessa Manoel de Oliveira Gomes, 03", "telefone": "(99) 98436-9495", "local": "Dom Pedro",
-        "taxa_servico": "10", "logo": (io.BytesIO(PNG), "logo.png"),
-    }, content_type="multipart/form-data")
+    dados = {
+        "nome": "admin-DP", "razao_social": "Comercial Gustavo", "documento": "36740823000109",
+        "email": "sac@exemplo.com.br", "telefone": "99984369495", "cep": "65765000",
+        "logradouro": "Travessa Manoel de Oliveira Gomes", "numero": "03", "bairro": "Centro",
+        "cidade": "Dom Pedro", "uf": "MA",
+    }
+    postar_c(logado, "/empresa", {**dados, "logo": (io.BytesIO(PNG), "logo.png")}, content_type="multipart/form-data")
+    postar_c(logado, "/comanda/ajustes/", {"local": "Dom Pedro", "taxa_servico": "10"})
     cupom = logado.get(f"/comanda/{comanda_id}/cupom").get_data(as_text=True)
     for texto in ("COMERCIAL GUSTAVO", "CNPJ: 36.740.823/0001-09", "E-mail: sac@exemplo.com.br",
-                  "Endereço: Travessa Manoel de Oliveira Gomes, 03", "Telefone: (99) 98436-9495", "Local: DOM PEDRO",
-                  "CONFERÊNCIA DE CONTA", "V.Unit.", "Itens na lista", 'src="data:image/png;base64,'):
+                  "Endereço: Travessa Manoel de Oliveira Gomes, 03 - Centro - Dom Pedro/MA",
+                  "Telefone: (99) 98436-9495", "Local: DOM PEDRO", "CONFERÊNCIA DE CONTA", "V.Unit.", "Itens na lista",
+                  'src="data:image/png;base64,'):
         assert texto in cupom, texto
+    # O topo do sistema mostra a razão social, não o nome usado no cadastro/entrada.
+    topo = logado.get("/comanda/").get_data(as_text=True)
+    assert '<span class="empresa-atual">Comercial Gustavo</span>' in topo
 
-    # Logo que não é imagem (ou grande demais) não entra; e dá para remover.
-    resposta = postar_c(logado, "/comanda/ajustes/", {"taxa_servico": "10", "logo": (io.BytesIO(b"<svg>"), "x.svg")},
+    # CPF/CNPJ errado, logo que não é imagem: nada muda. E dá para remover o logo.
+    for errado in ({"documento": "11111111111"}, {"cep": "123"}, {"uf": "XX"}):
+        resposta = postar_c(logado, "/empresa", {**dados, **errado}, follow_redirects=True)
+        assert "aviso erro" in resposta.get_data(as_text=True), errado
+    resposta = postar_c(logado, "/empresa", {**dados, "logo": (io.BytesIO(b"<svg>"), "x.svg")},
                         content_type="multipart/form-data", follow_redirects=True)
     assert "PNG ou JPG" in resposta.get_data(as_text=True)
-    postar_c(logado, "/comanda/ajustes/", {"acao": "remover_logo"})
+    with app.app_context():
+        assert db.obter().execute("SELECT documento FROM empresas WHERE id = 1").fetchone()[0] == "36740823000109"
+    postar_c(logado, "/empresa", {"acao": "remover_logo"})
     assert "data:image/png" not in logado.get(f"/comanda/{comanda_id}/cupom").get_data(as_text=True)

@@ -416,7 +416,9 @@ def _empresa_do_quiosque(codigo):
 def quiosque(codigo):
     """Tela fixa da loja (TV, tablet ou computador do caixa) que mostra o QR do ponto. Não precisa de login."""
     empresa_id = _empresa_do_quiosque(codigo)
-    nome = db.obter().execute("SELECT nome FROM empresas WHERE id = ?", (empresa_id,)).fetchone()["nome"]
+    nome = db.obter().execute(
+        "SELECT COALESCE(NULLIF(razao_social, ''), nome) AS nome FROM empresas WHERE id = ?", (empresa_id,)
+    ).fetchone()["nome"]
     return render_template("ponto_quiosque.html", codigo=codigo, nome=nome)
 
 

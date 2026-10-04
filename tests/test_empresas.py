@@ -369,3 +369,19 @@ def test_administrador_muda_papel_e_senha_de_quem_e_da_equipe(duas_empresas):
     assert postar(joao, f"/usuarios/{joao_id}/editar", {"papel": "editor"}, pagina="/usuarios").status_code == 403
     admin_id = consultar(dono, "SELECT id FROM usuarios WHERE usuario = 'admin'")[0]["id"]
     assert postar(joao, f"/usuarios/{admin_id}/editar", {"papel": "editor"}, pagina="/usuarios").status_code == 404
+
+
+def test_plataforma_cria_empresa_com_cadastro(logado):
+    postar(logado, "/plataforma/empresas/nova",
+           {"nome": "Loja do Zé", "razao_social": "José Lanches Ltda", "documento": "36.740.823/0001-09",
+            "email": "ze@exemplo.com", "telefone": "(99) 98436-9495", "usuario": "ze", "senha": "senha-do-ze-1"},
+           pagina="/plataforma/")
+    linha = consultar(logado, "SELECT * FROM empresas WHERE nome = 'Loja do Zé'")[0]
+    assert (linha["razao_social"], linha["documento"], linha["telefone"]) == ("José Lanches Ltda", "36740823000109", "(99) 98436-9495")
+    ze = entrar(logado.application, "ze", "senha-do-ze-1")
+    assert '<span class="empresa-atual">José Lanches Ltda</span>' in ze.get("/").get_data(as_text=True)
+
+    # CPF/CNPJ errado: a empresa não é criada.
+    postar(logado, "/plataforma/empresas/nova",
+           {"nome": "Errada", "documento": "123", "usuario": "errado", "senha": "senha-do-ze-1"}, pagina="/plataforma/")
+    assert consultar(logado, "SELECT * FROM empresas WHERE nome = 'Errada'") == []
