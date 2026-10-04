@@ -1,9 +1,8 @@
-"""Tela de exibição (TV), API das telas e registro das exibições."""
+"""Tela de exibição (TV), API das telas e registro das exibições.
 
-import hashlib
-import hmac
-import secrets
-from datetime import timedelta
+As regras (o que cada tela mostra, a conexão da TV pelo QR code e o crachá do aparelho)
+ficam em src/domain/painel; aqui ficam as rotas, os cookies e os arquivos.
+"""
 
 import segno
 from flask import (
@@ -19,8 +18,9 @@ from flask import (
     url_for,
 )
 
-from src.domain.painel import Playlist, ServicoDePropagandas, TelaDaPlaylist
-from src.infrastructure.sqlite import RepositorioDePropagandasSQLite
+from src.domain.painel import MuitosPedidos, Playlist, ServicoDeConexao, ServicoDePropagandas, TelaDaPlaylist
+from src.domain.painel.telas import PEDIDO_VALIDADE
+from src.infrastructure.sqlite import RepositorioDeConexoesSQLite, RepositorioDePropagandasSQLite
 
 from . import agenda, db
 from .auth import EMPRESA_PRINCIPAL, csrf_isento
@@ -28,7 +28,9 @@ from .auth import EMPRESA_PRINCIPAL, csrf_isento
 bp = Blueprint("exibicao", __name__)
 
 UM_ANO = 365 * 24 * 3600
-INTERVALO_CONTATO = 30  # segundos; evita gravar no banco a cada troca de propaganda
+DEZ_ANOS = 10 * 365 * 24 * 3600
+COOKIE_APARELHO = "tela_aparelho_{}"   # "crachá" da TV para a tela {id}
+COOKIE_PEDIDO = "tela_pedido"           # segredo do pedido de conexão feito na página /tela
 
 
 def empresa_ativa(empresa_id):
@@ -36,10 +38,14 @@ def empresa_ativa(empresa_id):
     return bool(linha and linha["ativa"])
 
 
-def _servico(empresa_id):
+def _propagandas(empresa_id):
     repositorio = RepositorioDePropagandasSQLite(db.obter(), empresa_id)
     # O relógio é lido a cada uso (lambda): os testes trocam agenda.agora_local.
     return ServicoDePropagandas(repositorio, agenda.fuso(), relogio=lambda: agenda.agora_local())
+
+
+def _conexao():
+    return ServicoDeConexao(RepositorioDeConexoesSQLite(db.obter()), relogio=lambda: agenda.agora_utc())
 
 
 def _resposta_playlist(playlist):
@@ -65,12 +71,12 @@ def playlist_da_empresa(empresa_id, tela=None):
     """O que a tela mostra agora (tela None = o player geral). Empresa suspensa: nada."""
     if not empresa_ativa(empresa_id):
         return Playlist([], "")
-    para = None if tela is None else TelaDaPlaylist(tela["id"], tela["grupo_id"], tela["letreiro"])
-    return _servico(empresa_id).playlist(para)
+    para = None if tela is None else TelaDaPlaylist(tela.id, tela.grupo_id, tela.letreiro)
+    return _propagandas(empresa_id).playlist(para)
 
 
 def _buscar_tela(codigo):
-    tela = db.obter().execute("SELECT * FROM telas WHERE codigo = ?", (codigo,)).fetchone()
+    tela = _conexao().tela(codigo)
     if tela is None:
         abort(404)
     return tela
@@ -79,18 +85,6 @@ def _buscar_tela(codigo):
 # ---------------------------------------------------------------------------
 # Pareamento: cada tela funciona só no aparelho conectado a ela
 # ---------------------------------------------------------------------------
-
-COOKIE_APARELHO = "tela_aparelho_{}"   # "crachá" da TV para a tela {id}
-COOKIE_PEDIDO = "tela_pedido"           # segredo do pedido de conexão feito na página /tela
-DEZ_ANOS = 10 * 365 * 24 * 3600
-PEDIDO_VALIDADE = 10 * 60               # o QR code da página /tela vale 10 minutos
-MAX_PEDIDOS_ABERTOS = 500               # contra quem tenta encher o banco abrindo /tela sem parar
-LETRAS_DO_PEDIDO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # sem 0/O, 1/I/L: fácil de digitar
-
-
-def _hash(token):
-    return hashlib.sha256(token.encode()).hexdigest()
-
 
 def _entregar_cracha(tela_id, token):
     @after_this_request
@@ -103,26 +97,11 @@ def _entregar_cracha(tela_id, token):
 
 
 def aparelho_autorizado(tela):
-    """O aparelho que abriu a tela é o que está conectado a ela?
-
-    Telas que já existiam antes do pareamento (aceita_link) aceitam, uma vez, o primeiro aparelho
-    que chegar pelo endereço: assim as TVs que já estavam ligadas continuam funcionando.
-    """
-    token = request.cookies.get(COOKIE_APARELHO.format(tela["id"]), "")
-    if tela["aparelho_hash"]:
-        return bool(token) and hmac.compare_digest(_hash(token), tela["aparelho_hash"])
-    if not tela["aceita_link"]:
-        return False
-    token = token or secrets.token_urlsafe(32)
-    conexao = db.obter()
-    with conexao:
-        conectou = conexao.execute(
-            "UPDATE telas SET aparelho_hash = ?, pareada_em = ?, aceita_link = 0 WHERE id = ? AND aparelho_hash IS NULL",
-            (_hash(token), agenda.para_texto_utc(agenda.agora_utc()), tela["id"]),
-        ).rowcount
-    if conectou:
-        _entregar_cracha(tela["id"], token)
-    return bool(conectou)
+    """O aparelho que abriu a tela é o que está conectado a ela? (entrega o crachá, se acabou de ficar com ela)"""
+    pode, cracha_novo = _conexao().autorizar(tela, request.cookies.get(COOKIE_APARELHO.format(tela.id)))
+    if cracha_novo:
+        _entregar_cracha(tela.id, cracha_novo)
+    return pode
 
 
 def _negado_api():
@@ -130,34 +109,10 @@ def _negado_api():
     return {"erro": "este aparelho não está conectado a esta tela", "conectar": url_for("exibicao.conectar")}, 403
 
 
-def pedido_por_codigo(conexao, codigo):
-    """Pedido de conexão ainda válido (lido pelo celular de quem administra)."""
-    limite = agenda.para_texto_utc(agenda.agora_utc() - timedelta(seconds=PEDIDO_VALIDADE))
-    return conexao.execute(
-        "SELECT * FROM pareamentos WHERE codigo = ? AND criado_em >= ?", ((codigo or "").upper(), limite)
-    ).fetchone()
-
-
-def conectar_aparelho(conexao, pedido, tela):
-    """Liga a TV do pedido à tela escolhida. O aparelho que estava nela deixa de funcionar."""
-    with conexao:
-        conexao.execute(
-            "UPDATE telas SET aparelho_hash = ?, pareada_em = ?, aceita_link = 0 WHERE id = ?",
-            (pedido["segredo_hash"], agenda.para_texto_utc(agenda.agora_utc()), tela["id"]),
-        )
-        conexao.execute("UPDATE pareamentos SET tela_id = ? WHERE id = ?", (tela["id"], pedido["id"]))
-
-
-def telas_deste_aparelho(conexao):
-    """Telas cujo crachá está guardado neste navegador (um computador pode mostrar várias)."""
+def _crachas_deste_navegador():
     prefixo = COOKIE_APARELHO.format("")
-    telas = []
-    for nome, token in request.cookies.items():
-        if nome.startswith(prefixo) and nome[len(prefixo):].isdigit() and token:
-            tela = conexao.execute("SELECT * FROM telas WHERE id = ?", (int(nome[len(prefixo):]),)).fetchone()
-            if tela and tela["aparelho_hash"] and hmac.compare_digest(_hash(token), tela["aparelho_hash"]):
-                telas.append(tela)
-    return sorted(telas, key=lambda t: t["nome"].lower())
+    return {int(nome[len(prefixo):]): token for nome, token in request.cookies.items()
+            if nome.startswith(prefixo) and nome[len(prefixo):].isdigit() and token}
 
 
 @bp.route("/tela")
@@ -168,10 +123,9 @@ def conectar():
     de quiosque da TV pode abrir sempre /tela, mesmo depois de reiniciar. Com mais de uma tela
     conectada no mesmo navegador, mostra a lista para escolher.
     """
-    conexao = db.obter()
-    conectadas = telas_deste_aparelho(conexao)
+    conectadas = _conexao().telas_do_aparelho(_crachas_deste_navegador())
     if len(conectadas) == 1:
-        return redirect(url_for("exibicao.tela", codigo=conectadas[0]["codigo"]))
+        return redirect(url_for("exibicao.tela", codigo=conectadas[0].codigo))
     if conectadas:
         return render_template("tela_escolher.html", telas=conectadas)
     return conectar_nova()
@@ -180,24 +134,15 @@ def conectar():
 @bp.route("/tela/nova")
 def conectar_nova():
     """Mostra o QR code mesmo num navegador que já tem telas: para conectar mais uma."""
-    conexao = db.obter()
-    agora = agenda.agora_utc()
-    with conexao:
-        conexao.execute("DELETE FROM pareamentos WHERE criado_em < ?",
-                        (agenda.para_texto_utc(agora - timedelta(seconds=PEDIDO_VALIDADE)),))
-    if conexao.execute("SELECT COUNT(*) FROM pareamentos").fetchone()[0] >= MAX_PEDIDOS_ABERTOS:
-        return "Muitos pedidos de conexão abertos. Tente de novo em alguns minutos.", 429
-    segredo = secrets.token_urlsafe(32)
-    while True:
-        codigo = "".join(secrets.choice(LETRAS_DO_PEDIDO) for _ in range(6))
-        if not conexao.execute("SELECT 1 FROM pareamentos WHERE codigo = ?", (codigo,)).fetchone():
-            break
-    with conexao:
-        conexao.execute("INSERT INTO pareamentos (codigo, segredo_hash, criado_em) VALUES (?, ?, ?)",
-                        (codigo, _hash(segredo), agenda.para_texto_utc(agora)))
+    conexao = _conexao()
+    try:
+        codigo, segredo = conexao.abrir_pedido()
+    except MuitosPedidos as erro:
+        return str(erro), 429
     endereco = url_for("telas.parear", codigo=codigo, _external=True)
     resposta = current_app.make_response(render_template(
-        "tela_conectar.html", codigo=codigo, endereco=endereco, conectadas=telas_deste_aparelho(conexao),
+        "tela_conectar.html", codigo=codigo, endereco=endereco,
+        conectadas=conexao.telas_do_aparelho(_crachas_deste_navegador()),
         qr=segno.make(endereco, error="m").svg_data_uri(scale=10, border=2), validade=PEDIDO_VALIDADE,
     ))
     resposta.set_cookie(COOKIE_PEDIDO, segredo, max_age=PEDIDO_VALIDADE, httponly=True, samesite="Lax",
@@ -210,51 +155,25 @@ def conectar_nova():
 def conexao_api():
     """A TV da página /tela pergunta a cada 2 s se alguém já escolheu a tela dela."""
     segredo = request.cookies.get(COOKIE_PEDIDO, "")
-    conexao = db.obter()
-    pedido = conexao.execute("SELECT * FROM pareamentos WHERE segredo_hash = ?", (_hash(segredo),)).fetchone() if segredo else None
-    limite = agenda.agora_utc() - timedelta(seconds=PEDIDO_VALIDADE)
-    if pedido is None or agenda.de_texto_utc(pedido["criado_em"]) < limite:
+    estado, tela = _conexao().situacao_do_pedido(segredo)
+    if estado == "vencido":
         return {"vencido": True}, 410  # a página recarrega e mostra um QR novo
-    if pedido["tela_id"] is None:
+    if estado == "aguardando":
         return {"pronto": False}
-    tela = conexao.execute("SELECT * FROM telas WHERE id = ?", (pedido["tela_id"],)).fetchone()
-    with conexao:
-        conexao.execute("DELETE FROM pareamentos WHERE id = ?", (pedido["id"],))
-    if tela is None or not hmac.compare_digest(tela["aparelho_hash"] or "", pedido["segredo_hash"]):
-        return {"vencido": True}, 410
-    _entregar_cracha(tela["id"], segredo)  # o segredo do pedido vira o crachá da TV
+    _entregar_cracha(tela.id, segredo)  # o segredo do pedido vira o crachá da TV
 
     @after_this_request
     def apagar_pedido(resposta):
         resposta.delete_cookie(COOKIE_PEDIDO)
         return resposta
-    return {"pronto": True, "url": url_for("exibicao.tela", codigo=tela["codigo"])}
+    return {"pronto": True, "url": url_for("exibicao.tela", codigo=tela.codigo)}
 
 
-FECHADA_TOLERANCIA = 3  # segundos: pedido que já estava a caminho quando a janela fechou não a "reabre"
-
-
-def _registrar_contato(tela, **extras):
-    agora = agenda.agora_utc()
-    if tela["fechada_em"] and (agora - agenda.de_texto_utc(tela["fechada_em"])).total_seconds() < FECHADA_TOLERANCIA:
-        return
-    if not extras and tela["ultimo_contato"] and not tela["fechada_em"]:
-        segundos = (agora - agenda.de_texto_utc(tela["ultimo_contato"])).total_seconds()
-        if segundos < INTERVALO_CONTATO:
-            return
-    campos = {
-        "ultimo_contato": agenda.para_texto_utc(agora),
-        "ultimo_ip": (request.remote_addr or "")[:45],
-        "navegador": request.headers.get("User-Agent", "")[:200],
-        "fechada_em": None,  # deu sinal de vida: a janela está aberta
-        **extras,
-    }
-    conexao = db.obter()
-    with conexao:
-        conexao.execute(
-            f"UPDATE telas SET {', '.join(f'{c} = ?' for c in campos)} WHERE id = ?",
-            (*campos.values(), tela["id"]),
-        )
+def _registrar_contato(tela, **novidade):
+    _conexao().registrar_contato(
+        tela, request.remote_addr or "", request.headers.get("User-Agent", ""),
+        exibindo=novidade.get("exibindo"), mudar_exibindo="exibindo" in novidade,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +197,7 @@ def playlist():
 
 @bp.route("/tela/<codigo>")
 def tela(codigo):
-    tela = db.obter().execute("SELECT * FROM telas WHERE codigo = ?", (codigo,)).fetchone()
+    tela = _conexao().tela(codigo)
     if tela is None:
         return render_template("tela_desconhecida.html"), 404
     if not aparelho_autorizado(tela):
@@ -296,7 +215,7 @@ def playlist_tela(codigo):
     if not aparelho_autorizado(tela):
         return _negado_api()
     _registrar_contato(tela)
-    return _resposta_playlist(playlist_da_empresa(tela["empresa_id"], tela))
+    return _resposta_playlist(playlist_da_empresa(tela.empresa_id, tela))
 
 
 @bp.route("/api/tela/<codigo>/pulso", methods=["POST"])
@@ -312,17 +231,13 @@ def pulso(codigo):
     if dados.get("saindo") is True:
         # A janela da TV foi fechada (ou recarregada): offline na hora. Se ela voltar, o
         # próximo contato limpa a marca.
-        agora_texto = agenda.para_texto_utc(agenda.agora_utc())
-        conexao = db.obter()
-        with conexao:
-            conexao.execute("UPDATE telas SET ultimo_contato = ?, fechada_em = ?, exibindo = NULL WHERE id = ?",
-                            (agora_texto, agora_texto, tela["id"]))
+        _conexao().marcar_fechada(tela)
         return {"saindo": True}
     registros = dados.get("exibicoes") or []
     if not isinstance(registros, list):
         abort(400)
-    propagandas = _servico(tela["empresa_id"])
-    recebidos, gravados = propagandas.registrar_exibicoes(tela["id"], registros, current_app.config["RETER_EXIBICOES_DIAS"])
+    propagandas = _propagandas(tela.empresa_id)
+    recebidos, gravados = propagandas.registrar_exibicoes(tela.id, registros, current_app.config["RETER_EXIBICOES_DIAS"])
     _registrar_contato(tela, exibindo=propagandas.nome_exibindo(dados.get("exibindo")))
     return {"recebidos": recebidos, "gravados": gravados}
 

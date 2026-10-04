@@ -31,7 +31,7 @@ Regras:
 | 3a. Permissões e autorizações por QR | feita |
 | 3b. Ponto | feita |
 | 3c. Painel de propagandas: propagandas, agenda e o que vai para cada TV | feita |
-| 3c. Painel de propagandas: telas, grupos e conexão da TV | a fazer |
+| 3c. Painel de propagandas: telas, grupos e conexão da TV | feita |
 | 4. Versões locais (Comanda e Painel) usando o mesmo núcleo | a fazer |
 
 ## Comanda
@@ -85,7 +85,12 @@ Testes: `tests/unidade/test_ponto_dominio.py` (regras, sem banco) e `tests/test_
 - `src/domain/painel/servico.py`: cadastro, edição, ações em lote, pausa geral, letreiro e a `Playlist` de cada tela.
   Os arquivos (salvar e apagar do disco) ficam com a porta de entrada.
 - `src/infrastructure/sqlite/propagandas.py`: `propagandas`, `propaganda_destinos` e `exibicoes`, restrito a uma loja.
-- `propagandas/painel.py` e `propagandas/exibicao.py`: as rotas do painel e da TV.
+- `src/domain/painel/telas.py` e `servico_telas.py`: a `Tela`, o endereço dela, o crachá do aparelho (o banco guarda
+  só o hash), o pedido de conexão pelo QR (vale 10 minutos) e o sinal de vida da TV. `ServicoDeTelas` é o lado de
+  quem administra (restrito à loja); `ServicoDeConexao` é o lado da TV, que ainda não sabe de que loja é.
+- `src/infrastructure/sqlite/telas.py`: os dois repositórios (o da loja e o da TV).
+- `propagandas/painel.py`, `propagandas/telas.py` e `propagandas/exibicao.py`: as rotas, os cookies e os arquivos.
 
-Testes: `tests/unidade/test_painel_dominio.py` (regras, sem banco) e `tests/test_propagandas_repositorio.py`
-(banco de verdade: isolamento entre lojas, TV reenviando os mesmos registros sem duplicar).
+Testes: `tests/unidade/test_painel_dominio.py` e `test_telas_dominio.py` (regras, sem banco),
+`tests/test_propagandas_repositorio.py` e `test_telas_repositorio.py` (banco de verdade: isolamento entre lojas,
+TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a ponta, 6 TVs disputando uma tela antiga).
