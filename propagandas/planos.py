@@ -1,11 +1,11 @@
 """Empresas na porta de entrada: o serviço (src/domain/empresas) e os limites do plano de cada uma."""
 
-from src.domain.empresas import MB, ServicoDeEmpresas
+from src.domain.empresas import MB, ServicoDaPlataforma, ServicoDeEmpresas
 from src.infrastructure.sqlite import RepositorioDeEmpresasSQLite
 
 from . import alertas, db
 
-__all__ = ["MB", "cabe_no_armazenamento", "empresa", "pode_cadastrar_tela", "servico", "uso"]
+__all__ = ["MB", "cabe_no_armazenamento", "empresa", "pode_cadastrar_tela", "servico", "servico_da_plataforma", "uso"]
 
 
 def _erro_webhook(url):
@@ -38,3 +38,11 @@ def pode_cadastrar_tela(conexao, empresa_id):
 
 def cabe_no_armazenamento(conexao, empresa_id, bytes_novos):
     return servico(conexao).cabe_no_armazenamento(empresa_id, bytes_novos)
+
+
+def servico_da_plataforma(conexao=None):
+    from .auth import EMPRESA_PRINCIPAL  # evita importação circular
+
+    conexao = conexao or db.obter()
+    return ServicoDaPlataforma(RepositorioDeEmpresasSQLite(conexao), EMPRESA_PRINCIPAL,
+                               codigo_livre=servico(conexao).codigo_livre)

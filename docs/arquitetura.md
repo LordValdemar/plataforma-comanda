@@ -38,6 +38,7 @@ Regras:
 | 6a. Cardápio da Comanda | feita |
 | 6b. Relatórios (vendas da Comanda e exibições do Painel) | feita |
 | 6c. Empresas: módulos, cadastro, limites do plano e abertura de loja | feita |
+| 6d. Plataforma: criar, suspender e excluir empresas clientes | feita |
 
 ## Comanda
 
@@ -131,10 +132,14 @@ gravada, isolamento entre lojas, o dia local com fuso).
 - `src/domain/empresas/servico.py`: salvar as configurações da loja e abrir uma loja pelo cadastro aberto (se o
   administrador for recusado, a empresa é desfeita). O webhook é conferido por quem chama (a porta de entrada
   resolve o endereço e recusa os internos).
+- `src/domain/empresas/plataforma.py`: a plataforma criando empresas (com o administrador; recusado, desfaz),
+  mudando limites e módulos liberados, suspendendo (a principal nunca; suspensa por atraso mantém o motivo) e
+  excluindo (só com o nome exato, e depois de parar a cobrança no Asaas).
 - `src/infrastructure/sqlite/empresas.py`: a tabela empresas; código disputado por duas lojas vira erro da regra.
-- `propagandas/planos.py` (o serviço e os limites), `modulos.py`, `cadastro.py`, `empresa.py` e `conta.py`: a porta de entrada.
+- `propagandas/planos.py` (os serviços e os limites), `modulos.py`, `cadastro.py`, `empresa.py`, `conta.py` e
+  `plataforma.py`: a porta de entrada.
 
-Testes: `tests/unidade/test_empresas_dominio.py` e `tests/test_empresas_repositorio.py`.
+Testes: `tests/unidade/test_empresas_dominio.py`, `test_plataforma_dominio.py` e `tests/test_empresas_repositorio.py`.
 
 ## Cobrança e Asaas
 

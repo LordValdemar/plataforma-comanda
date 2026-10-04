@@ -1,9 +1,10 @@
-"""Empresas no SQLite de verdade: módulos do plano, uso, código disputado e cadastro gravado só nas colunas certas."""
+"""Empresas no SQLite de verdade: módulos do plano, uso, código disputado, cadastro gravado só nas colunas certas e a
+plataforma criando, suspendendo e excluindo (em cascata) uma empresa."""
 
 import pytest
 
 from propagandas import db
-from src.domain.empresas import CodigoEmUso, Configuracoes, ServicoDeEmpresas
+from src.domain.empresas import CodigoEmUso, Configuracoes, DadosDaEmpresa, Limites, ServicoDaPlataforma, ServicoDeEmpresas
 from src.infrastructure.sqlite import RepositorioDeEmpresasSQLite
 
 
@@ -43,3 +44,22 @@ def test_configuracoes_e_codigo(conexao):
     assert conexao.execute("SELECT slug FROM empresas WHERE id = 3").fetchone()[0] == "padaria"   # nada gravado
     assert empresas.codigo_livre("Zeca") == "zeca-2"
     assert db.gerar_slug(conexao, "Padaria") == "padaria-2" and db.gerar_slug(conexao, "Padaria", 3) == "padaria"
+
+
+def test_plataforma_cria_atualiza_e_exclui(conexao):
+    repo = RepositorioDeEmpresasSQLite(conexao)
+    plataforma = ServicoDaPlataforma(repo, 1, ServicoDeEmpresas(repo, 1).codigo_livre)
+    empresa_id, _ = plataforma.criar(DadosDaEmpresa("Lanchonete", Limites(2, None), "comanda", {"cidade": "Dom Pedro"}),
+                                     lambda _id: None)
+    linha = conexao.execute("SELECT slug, limite_telas, limite_mb, modulos_liberados, cidade FROM empresas WHERE id = ?",
+                            (empresa_id,)).fetchone()
+    assert tuple(linha) == ("lanchonete-2", 2, None, "comanda", "Dom Pedro")
+    plataforma.atualizar(empresa_id, DadosDaEmpresa("Lanchonete Nova", Limites(None, 50), ""), ativa=False)
+    assert repo.cliente(empresa_id).motivo_suspensao == "manual" and not repo.cliente(empresa_id).ativa
+    with conexao:
+        conexao.execute("INSERT INTO propagandas (empresa_id, nome, arquivo, tipo, tamanho, duracao, posicao) "
+                        "VALUES (?, 'a', 'x.png', 'imagem', 1, 10, 1)", (empresa_id,))
+    apagados = []
+    plataforma.excluir(empresa_id, "Lanchonete Nova", lambda _id: None, apagados.append)
+    assert apagados == ["x.png"] and repo.cliente(empresa_id) is None
+    assert conexao.execute("SELECT COUNT(*) FROM propagandas WHERE empresa_id = ?", (empresa_id,)).fetchone()[0] == 0

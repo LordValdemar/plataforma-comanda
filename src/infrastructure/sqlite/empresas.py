@@ -1,9 +1,10 @@
-"""Repositório das empresas no SQLite: módulos, limites e uso do plano, configurações e cadastro."""
+"""Repositório das empresas no SQLite: módulos, limites e uso do plano, configurações, cadastro e a administração
+pela plataforma."""
 
 import sqlite3
 from collections.abc import Mapping
 
-from src.domain.empresas import COLUNAS, CodigoEmUso, Limites, Uso
+from src.domain.empresas import COLUNAS, CodigoEmUso, DadosDaEmpresa, EmpresaCliente, Limites, Uso
 
 
 class RepositorioDeEmpresasSQLite:
@@ -38,10 +39,7 @@ class RepositorioDeEmpresasSQLite:
             with self._c:
                 self._c.execute("UPDATE empresas SET nome = ?, slug = ?, alerta_emails = ?, alerta_webhook = ? WHERE id = ?",
                                 (nome, codigo, emails, webhook, empresa_id))
-                for coluna, valor in cadastro.items():
-                    if coluna not in COLUNAS:   # o nome da coluna entra no SQL: só as do cadastro
-                        raise ValueError(f"coluna desconhecida: {coluna}")
-                    self._c.execute(f"UPDATE empresas SET {coluna} = ? WHERE id = ?", (valor, empresa_id))
+                self._gravar_cadastro(empresa_id, cadastro)
         except sqlite3.IntegrityError:   # outra loja pegou o mesmo código ao mesmo tempo
             raise CodigoEmUso(codigo) from None
 
@@ -61,3 +59,40 @@ class RepositorioDeEmpresasSQLite:
     def apagar(self, empresa_id: int) -> None:
         with self._c:
             self._c.execute("DELETE FROM empresas WHERE id = ?", (empresa_id,))
+
+    # -- a plataforma administrando as empresas clientes ----------------------------------
+
+    def cliente(self, empresa_id: int) -> EmpresaCliente | None:
+        linha = self._c.execute("SELECT * FROM empresas WHERE id = ?", (empresa_id,)).fetchone()
+        if linha is None:
+            return None
+        return EmpresaCliente(id=linha["id"], nome=linha["nome"], ativa=bool(linha["ativa"]),
+                              motivo_suspensao=linha["motivo_suspensao"], modulos_liberados=linha["modulos_liberados"] or "",
+                              tem_assinatura=bool(linha["asaas_assinatura_id"]))
+
+    def criar_cliente(self, dados: DadosDaEmpresa, codigo: str, cadastro: Mapping[str, str]) -> int:
+        with self._c:
+            cursor = self._c.execute(
+                "INSERT INTO empresas (nome, slug, limite_telas, limite_mb, modulos_liberados) VALUES (?, ?, ?, ?, ?)",
+                (dados.nome, codigo, dados.limites.telas, dados.limites.mb, dados.modulos_liberados))
+            empresa_id = int(cursor.lastrowid or 0)
+            self._gravar_cadastro(empresa_id, cadastro)
+        return empresa_id
+
+    def _gravar_cadastro(self, empresa_id: int, cadastro: Mapping[str, str]) -> None:
+        for coluna, valor in cadastro.items():
+            if coluna not in COLUNAS:   # o nome da coluna entra no SQL: só as do cadastro
+                raise ValueError(f"coluna desconhecida: {coluna}")
+            self._c.execute(f"UPDATE empresas SET {coluna} = ? WHERE id = ?", (valor, empresa_id))
+
+    def atualizar_cliente(self, empresa_id: int, nome: str, limites: Limites, ativa: bool, motivo_suspensao: str | None,
+                          modulos_liberados: str) -> None:
+        with self._c:
+            self._c.execute(
+                "UPDATE empresas SET nome = ?, limite_telas = ?, limite_mb = ?, ativa = ?, motivo_suspensao = ?, "
+                "modulos_liberados = ? WHERE id = ?",
+                (nome, limites.telas, limites.mb, 1 if ativa else 0, motivo_suspensao, modulos_liberados, empresa_id))
+
+    def arquivos_de_midia(self, empresa_id: int) -> list[str]:
+        return [linha["arquivo"] for linha in self._c.execute("SELECT arquivo FROM propagandas WHERE empresa_id = ?",
+                                                                (empresa_id,))]
