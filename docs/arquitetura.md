@@ -50,9 +50,13 @@ Regras:
 - `src/domain/comanda/servico.py`: os casos de uso. Os que mexem em dinheiro rodam numa transação travada.
 - `src/domain/comanda/repositorio.py`: o que o domínio precisa do banco (contrato).
 - `src/infrastructure/sqlite/comandas.py`: o contrato implementado no SQLite, sempre restrito a uma loja.
+- `src/infrastructure/sqlite/consultas_comanda.py` (`ConsultasDaComanda`): o que as telas mostram (lista, detalhe,
+  fechamento, cupom, histórico, cozinha), só leitura e sempre de uma loja; `src/domain/comanda/cozinha.py`: a
+  tela da cozinha agrupada por comanda (tudo pronto vai para o fim).
 - `propagandas/comanda/comandas.py`: as rotas HTTP; leem o formulário, conferem permissões e chamam o serviço.
 
-Testes: `tests/unidade` (regras, sem banco, em milissegundos) e `tests/test_comanda_repositorio.py`
+Testes: `tests/unidade` (regras, sem banco, em milissegundos), `tests/test_comanda_repositorio.py` e
+`tests/test_consultas_comanda.py`
 (banco de verdade: 8 caixas pagando a mesma conta ao mesmo tempo, erro no meio da gravação, isolamento entre lojas).
 
 ## Permissões e autorizações
@@ -102,10 +106,6 @@ Testes: `tests/unidade/test_ponto_dominio.py` (regras, sem banco) e `tests/test_
 Testes: `tests/unidade/test_painel_dominio.py` e `test_telas_dominio.py` (regras, sem banco),
 `tests/test_propagandas_repositorio.py` e `test_telas_repositorio.py` (banco de verdade: isolamento entre lojas,
 TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a ponta, 6 TVs disputando uma tela antiga).
-
-- `src/infrastructure/sqlite/consultas_comanda.py` (`ConsultasDaComanda`): o que as telas mostram (lista, detalhe,
-  fechamento, cupom, histórico, cozinha), só leitura e sempre de uma loja; `src/domain/comanda/cozinha.py`: a
-  tela da cozinha agrupada por comanda (tudo pronto vai para o fim).
 
 ## Cardápio
 
