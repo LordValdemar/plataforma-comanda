@@ -78,3 +78,12 @@ def test_limite_de_tentativas_conta_certo_com_varias_threads():
     assert len(limite._erros["6.6.6.6"]) == 800 and limite.bloqueado("6.6.6.6")
     limite.acertou("6.6.6.6")
     assert not limite.bloqueado("6.6.6.6")
+
+
+def test_contas_chamadas_pela_linha_de_comando(contas):
+    servico, _conexao = contas
+    servico.criar(2, "joao", "senha-do-joao", "garcom")
+    servico.criar(3, "joao", "outra-senha-1", "garcom")
+    assert len(servico.contas_chamadas("joao")) == 2
+    assert [c.empresa_id for c in servico.contas_chamadas(" joao ", "PADARIA")] == [3]
+    assert servico.contas_chamadas("ninguem") == []

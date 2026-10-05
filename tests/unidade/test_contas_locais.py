@@ -152,3 +152,15 @@ def test_dois_fatores(contas):
     depois.desativar_2fa_propria(repo.contas[ana], "123456", totp.codigo_atual(segredo, AGORA + 60))
     assert not repo.contas[ana].tem_2fa and repo.contas[ana].token_sessao != token
     assert servico.pode_pedir_codigo(ana) is None
+
+
+def test_linha_de_comando(contas):
+    servico, repo = contas
+    ana = servico.criar("ana", "123456", "admin")
+    servico.criar("dono", "123456", "admin")
+    servico.alternar_ativo(ana)
+    assert servico.pelo_nome(" ANA ").id == ana
+    with pytest.raises(NaoEncontrado, match="“zé” não encontrado"):
+        servico.pelo_nome("zé")
+    servico.recuperar_acesso(ana, "senha-nova")
+    assert repo.contas[ana].ativo and servico.entrar("ana", "senha-nova", "ip").id == ana

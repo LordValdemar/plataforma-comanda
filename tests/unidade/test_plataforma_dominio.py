@@ -98,3 +98,8 @@ def test_excluir(repo):
     assert 2 in repo.empresas and apagados == []                          # nada apagado sem parar a cobrança
     assert plataforma(repo).excluir(2, " Mercado ", canceladas.append, apagados.append).nome == "Mercado"
     assert canceladas == [2] and apagados == ["a.png", "b.mp4"] and 2 not in repo.empresas
+
+
+def test_criar_sem_administrador(repo):
+    empresa_id, admin = plataforma(repo).criar(DadosDaEmpresa("Pela Linha de Comando", SEM_LIMITE, "painel"))
+    assert admin is None and repo.empresas[empresa_id].nome == "Pela Linha de Comando"

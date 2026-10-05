@@ -76,15 +76,21 @@ class ConsultasDeEmpresas:
     # -- a plataforma -------------------------------------------------------------------
 
     def empresas_com_uso(self) -> list[Linha]:
-        """Todas as empresas, com quantas pessoas e propagandas têm e quanto ocupam."""
+        """Todas as empresas, com quantas pessoas, telas e propagandas têm e quanto ocupam."""
         return self._linhas(
             """
             SELECT e.*,
                    (SELECT COUNT(*) FROM usuarios u WHERE u.empresa_id = e.id) AS usuarios,
+                   (SELECT COUNT(*) FROM telas t WHERE t.empresa_id = e.id) AS telas,
                    (SELECT COUNT(*) FROM propagandas p WHERE p.empresa_id = e.id) AS propagandas,
                    (SELECT COALESCE(SUM(tamanho), 0) FROM propagandas p WHERE p.empresa_id = e.id) AS bytes
             FROM empresas e ORDER BY e.id
             """)
+
+    def todos_os_usuarios(self) -> list[Linha]:
+        """Para a linha de comando: todos, com a loja de cada um."""
+        return self._linhas("SELECT u.*, e.nome AS empresa, e.slug FROM usuarios u JOIN empresas e ON e.id = u.empresa_id "
+                            "ORDER BY e.id, u.usuario")
 
     def contato_das_telas(self) -> list[Linha]:
         """De todas as telas: de que empresa são e quando falaram por último (para contar as online)."""

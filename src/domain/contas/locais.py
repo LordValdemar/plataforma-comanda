@@ -81,6 +81,12 @@ class ServicoDeContasLocais:
     def existe_alguem(self) -> bool:
         return self._repo.existe_alguem()
 
+    def pelo_nome(self, nome: str) -> ContaLocal:
+        conta = self._repo.conta_com_nome((nome or "").strip())
+        if conta is None:
+            raise NaoEncontrado(f"Usuário “{(nome or '').strip()}” não encontrado.")
+        return conta
+
     # -- regras ---------------------------------------------------------------------------------
 
     @staticmethod
@@ -120,6 +126,11 @@ class ServicoDeContasLocais:
         """Trocar o token derruba as sessões abertas em outros aparelhos."""
         self.validar_senha(nova)
         self._repo.gravar_senha(usuario_id, self._senhas.gerar(nova), novo_token())
+
+    def recuperar_acesso(self, usuario_id: int, nova: str) -> None:
+        """Linha de comando, para quem esqueceu a senha: senha nova e o usuário volta a ficar ativo."""
+        self.trocar_senha(usuario_id, nova)
+        self._repo.definir_ativo(usuario_id, True, novo_token())
 
     def mudar_minha_senha(self, conta: ContaLocal, atual: str, nova: str, confirmacao: str) -> None:
         if not self._senhas.confere(conta.senha_hash, atual):
