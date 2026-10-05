@@ -41,6 +41,7 @@ Regras:
 | 6d. Plataforma: criar, suspender e excluir empresas clientes | feita |
 | 6e. Alertas, backup, tarefas de fundo e ajustes da Comanda | feita |
 | 7a. Consultas das telas da Comanda fora das rotas | feita |
+| 7b. Consultas das telas do Painel e do ponto fora das rotas | feita |
 
 ## Comanda
 
@@ -84,6 +85,8 @@ Testes: `tests/unidade/test_permissoes_dominio.py` (regras, sem banco) e `tests/
   relatório de horas. Relógio e fuso injetados.
 - `src/domain/tentativas.py`: limite de códigos errados por pessoa.
 - `src/infrastructure/sqlite/ponto.py`: `ponto_registros`, os horários em `usuarios` e os ajustes, restrito a uma loja.
+- `src/infrastructure/sqlite/consultas_ponto.py` (`ConsultasDoPonto`): o que a equipe, o quiosque e a tarefa de
+  fundo leem.
 - `propagandas/ponto.py`: as rotas, a presença confirmada (na sessão) e o before_request que segura quem está sem ponto.
 
 Testes: `tests/unidade/test_ponto_dominio.py` (regras, sem banco) e `tests/test_ponto_repositorio.py`
@@ -103,6 +106,8 @@ Testes: `tests/unidade/test_ponto_dominio.py` (regras, sem banco) e `tests/test_
 - `src/infrastructure/sqlite/telas.py`: os dois repositórios (o da loja e o da TV).
 - `propagandas/painel.py`, `propagandas/telas.py` e `propagandas/exibicao.py`: as rotas, os cookies e os arquivos.
 
+- `src/infrastructure/sqlite/consultas_painel.py` (`ConsultasDoPainel`): telas, grupos e destinos de cada
+  propaganda, como as telas mostram (o Painel local copia).
 Testes: `tests/unidade/test_painel_dominio.py` e `test_telas_dominio.py` (regras, sem banco),
 `tests/test_propagandas_repositorio.py` e `test_telas_repositorio.py` (banco de verdade: isolamento entre lojas,
 TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a ponta, 6 TVs disputando uma tela antiga).

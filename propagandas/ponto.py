@@ -34,7 +34,7 @@ from src.domain.ponto import (
     ServicoDePonto,
 )
 from src.domain.tentativas import LimiteDeTentativas
-from src.infrastructure.sqlite import RepositorioDePontoSQLite
+from src.infrastructure.sqlite import ConsultasDoPonto, RepositorioDePontoSQLite
 
 from . import agenda, db, modulos
 from .auth import login_obrigatorio
@@ -132,9 +132,8 @@ def exigir():
 
 def fechar_fora_do_horario():
     """Tarefa de fundo (a cada minuto): fecha os pontos de quem passou do horário, loja por loja."""
-    lojas = db.obter().execute("SELECT DISTINCT empresa_id FROM ponto_registros WHERE saida IS NULL").fetchall()
-    for loja in lojas:
-        for nome in servico(loja["empresa_id"]).fechar_fora_do_horario():
+    for loja in ConsultasDoPonto(db.obter()).lojas_com_ponto_aberto():
+        for nome in servico(loja).fechar_fora_do_horario():
             log.info("Ponto de “%s” fechado automaticamente: fim do horário", nome)
 
 
@@ -227,22 +226,17 @@ def _confirmar_presenca(usar):
 
 
 def _empresa_do_quiosque(codigo):
-    linha = db.obter().execute(
-        "SELECT empresa_id FROM configuracoes WHERE chave = 'ponto_quiosque' AND valor = ?", (codigo,)
-    ).fetchone()
-    if linha is None:
+    empresa_id = ConsultasDoPonto(db.obter()).loja_do_quiosque(codigo)
+    if empresa_id is None:
         abort(404)
-    return linha["empresa_id"]
+    return empresa_id
 
 
 @bp.route("/ponto/quiosque/<codigo>")
 def quiosque(codigo):
     """Tela fixa da loja (TV, tablet ou computador do caixa) que mostra o QR do ponto. Não precisa de login."""
     empresa_id = _empresa_do_quiosque(codigo)
-    nome = db.obter().execute(
-        "SELECT COALESCE(NULLIF(razao_social, ''), nome) AS nome FROM empresas WHERE id = ?", (empresa_id,)
-    ).fetchone()["nome"]
-    return render_template("ponto_quiosque.html", codigo=codigo, nome=nome)
+    return render_template("ponto_quiosque.html", codigo=codigo, nome=ConsultasDoPonto(db.obter()).nome_da_loja(empresa_id))
 
 
 @bp.route("/api/ponto/quiosque/<codigo>")
@@ -259,7 +253,7 @@ def quiosque_api(codigo):
                     "troca_em": QR_TROCA_SEGUNDOS - int(time.time()) % QR_TROCA_SEGUNDOS}
         if request.args.get("versao") != versao:
             resposta["codigo"] = ponto.codigo_digitavel(token)
-            slug = db.obter().execute("SELECT slug FROM empresas WHERE id = ?", (empresa_id,)).fetchone()["slug"]
+            slug = ConsultasDoPonto(db.obter()).codigo_da_loja(empresa_id)
             endereco = url_for("ponto.ler_qr", slug=slug, token=token, _external=True)
             resposta["qr"] = segno.make(endereco, error="m").svg_data_uri(scale=10, border=2)
     resposta = jsonify(resposta)
@@ -285,12 +279,7 @@ def equipe():
     inicio, fim = _ler_periodo()
     pessoa_id = request.args.get("pessoa", type=int)
     registros = ponto.historico(*_periodo_utc(inicio, fim), pessoa_id)
-    pessoas = db.obter().execute(
-        "SELECT u.*, p.entrada AS trabalhando_desde FROM usuarios u "
-        "LEFT JOIN ponto_registros p ON p.usuario_id = u.id AND p.saida IS NULL "
-        "WHERE u.empresa_id = ? ORDER BY u.papel = 'admin', u.usuario",
-        (g.empresa_id,),
-    ).fetchall()
+    pessoas = ConsultasDoPonto(db.obter()).equipe(g.empresa_id)
     return render_template(
         "ponto_equipe.html",
         ativo=ponto.ativo,

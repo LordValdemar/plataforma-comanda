@@ -258,5 +258,5 @@ def midia(arquivo):
 @bp.route("/saude")
 def saude():
     """Para monitoramento: responde 200 se o servidor e o banco estão ok."""
-    db.obter().execute("SELECT 1").fetchone()
+    db.responde()
     return {"status": "ok"}

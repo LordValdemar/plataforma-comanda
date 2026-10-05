@@ -7,7 +7,7 @@ from flask import Blueprint, g, render_template, request
 from src.domain.periodo import Periodo
 from src.domain.relatorios import RelatorioDeExibicoes
 from src.domain.relatorios.exibicoes import DIAS_PADRAO
-from src.infrastructure.sqlite import RepositorioDeExibicoesSQLite
+from src.infrastructure.sqlite import ConsultasDoPainel, RepositorioDeExibicoesSQLite
 
 from . import agenda, db, modulos, permissoes
 from .comanda.relatorios import csv_para_baixar
@@ -36,7 +36,7 @@ def relatorio():
 def resumo():
     de, ate, tela_id = _ler_filtros()
     dados = relatorio().resumo(*_intervalo_utc(de, ate), tela_id)
-    telas = db.obter().execute("SELECT id, nome FROM telas WHERE empresa_id = ? ORDER BY nome", (g.empresa_id,)).fetchall()
+    telas = ConsultasDoPainel(db.obter(), g.empresa_id).telas_para_escolher()
     return render_template("relatorios.html", de=de, ate=ate, tela_id=tela_id, telas=telas,
                            por_propaganda=dados.por_propaganda, por_tela=dados.por_tela,
                            total_exibicoes=dados.total_exibicoes, total_tempo=dados.total_tempo)

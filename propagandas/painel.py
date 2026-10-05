@@ -27,7 +27,7 @@ from src.domain.painel import (
     ler_duracao,
     ler_letreiro,
 )
-from src.infrastructure.sqlite import RepositorioDePropagandasSQLite
+from src.infrastructure.sqlite import ConsultasDoPainel, RepositorioDePropagandasSQLite
 
 from . import agenda, db, modulos, planos
 from .auth import login_obrigatorio
@@ -42,32 +42,6 @@ def servico():
     repositorio = RepositorioDePropagandasSQLite(db.obter(), g.empresa_id)
     # O relógio é lido a cada uso (lambda): os testes trocam agenda.agora_local.
     return ServicoDePropagandas(repositorio, agenda.fuso(), relogio=lambda: agenda.agora_local())
-
-
-def destinos_por_propaganda(conexao):
-    """Para a lista: {propaganda_id: {"telas": {ids}, "grupos": {ids}, "nomes": [..]}}"""
-    resultado = {}
-    linhas = conexao.execute(
-        """
-        SELECT d.propaganda_id, d.tela_id, d.grupo_id, t.nome AS tela_nome, gr.nome AS grupo_nome
-        FROM propaganda_destinos d
-        LEFT JOIN telas t ON t.id = d.tela_id
-        LEFT JOIN grupos gr ON gr.id = d.grupo_id
-        JOIN propagandas p ON p.id = d.propaganda_id
-        WHERE p.empresa_id = ?
-        ORDER BY gr.nome, t.nome
-        """,
-        (g.empresa_id,),
-    )
-    for linha in linhas:
-        destino = resultado.setdefault(linha["propaganda_id"], {"telas": set(), "grupos": set(), "nomes": []})
-        if linha["grupo_id"]:
-            destino["grupos"].add(linha["grupo_id"])
-            destino["nomes"].append("Grupo " + linha["grupo_nome"])
-        else:
-            destino["telas"].add(linha["tela_id"])
-            destino["nomes"].append(linha["tela_nome"])
-    return resultado
 
 
 def _destinos_do_formulario(formulario):
@@ -91,15 +65,16 @@ def _apagar_arquivo(propaganda):
 @login_obrigatorio()
 def lista():
     conexao = db.obter()
+    leitura = ConsultasDoPainel(conexao, g.empresa_id)
     propagandas = servico()
     itens, situacoes = propagandas.lista()
     return render_template(
         "propagandas.html",
         itens=itens,
         situacoes=situacoes,
-        destinos=destinos_por_propaganda(conexao),
-        telas=conexao.execute("SELECT id, nome FROM telas WHERE empresa_id = ? ORDER BY nome", (g.empresa_id,)).fetchall(),
-        grupos=conexao.execute("SELECT id, nome FROM grupos WHERE empresa_id = ? ORDER BY nome", (g.empresa_id,)).fetchall(),
+        destinos=leitura.destinos_por_propaganda(),
+        telas=leitura.telas_para_escolher(),
+        grupos=leitura.grupos_para_escolher(),
         dias=agenda.DIAS,
         agenda=agenda,
         letreiro=propagandas.letreiro,

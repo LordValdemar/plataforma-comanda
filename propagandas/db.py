@@ -535,6 +535,11 @@ def gravar_config(empresa_id, chave, valor):
         )
 
 
+def responde():
+    """Para o monitoramento (/saude): levanta erro se o banco não responde."""
+    obter().execute("SELECT 1").fetchone()
+
+
 def gerar_slug(conexao, nome, ignorar_id=None):
     """Código da loja a partir do nome: "Padeiro Lanches" → "padeiro-lanches" (único)."""
     from .planos import servico  # evita importação circular

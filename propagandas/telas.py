@@ -6,7 +6,7 @@ from flask import Blueprint, abort, current_app, flash, g, redirect, render_temp
 
 from src.domain.erros import NaoEncontrado
 from src.domain.painel import ErroDeTela, PedidoVencido, ServicoDeTelas, normalizar_codigo_de_pedido
-from src.infrastructure.sqlite import RepositorioDeTelasSQLite
+from src.infrastructure.sqlite import ConsultasDoPainel, RepositorioDeTelasSQLite
 
 from . import agenda, alertas, db, modulos, permissoes, planos
 from .auth import login_obrigatorio
@@ -38,11 +38,8 @@ def _uma(acao):
 @permissoes.exigir("telas")
 def lista():
     conexao = db.obter()
-    telas = conexao.execute(
-        "SELECT t.*, gr.nome AS grupo_nome FROM telas t LEFT JOIN grupos gr ON gr.id = t.grupo_id "
-        "WHERE t.empresa_id = ? ORDER BY t.nome",
-        (g.empresa_id,),
-    ).fetchall()
+    leitura = ConsultasDoPainel(conexao, g.empresa_id)
+    telas = leitura.telas()
     empresa = planos.empresa(conexao, g.empresa_id)
     online = {t["id"]: alertas.esta_online(t) for t in telas}
     return render_template(
@@ -50,11 +47,7 @@ def lista():
         telas=telas,
         online=online,
         offline=sum(1 for t in telas if t["ultimo_contato"] and not online[t["id"]]),
-        grupos=conexao.execute(
-            "SELECT gr.*, COUNT(t.id) AS total FROM grupos gr LEFT JOIN telas t ON t.grupo_id = gr.id "
-            "WHERE gr.empresa_id = ? GROUP BY gr.id ORDER BY gr.nome",
-            (g.empresa_id,),
-        ).fetchall(),
+        grupos=leitura.grupos_com_total(),
         canais=alertas.canais_da_empresa(empresa, current_app.config),
         letreiro_geral=db.ler_config(g.empresa_id, "letreiro"),
         empresa=empresa,
