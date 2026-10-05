@@ -40,6 +40,7 @@ Regras:
 | 6c. Empresas: módulos, cadastro, limites do plano e abertura de loja | feita |
 | 6d. Plataforma: criar, suspender e excluir empresas clientes | feita |
 | 6e. Alertas, backup, tarefas de fundo e ajustes da Comanda | feita |
+| 7a. Consultas das telas da Comanda fora das rotas | feita |
 
 ## Comanda
 
@@ -101,6 +102,10 @@ Testes: `tests/unidade/test_ponto_dominio.py` (regras, sem banco) e `tests/test_
 Testes: `tests/unidade/test_painel_dominio.py` e `test_telas_dominio.py` (regras, sem banco),
 `tests/test_propagandas_repositorio.py` e `test_telas_repositorio.py` (banco de verdade: isolamento entre lojas,
 TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a ponta, 6 TVs disputando uma tela antiga).
+
+- `src/infrastructure/sqlite/consultas_comanda.py` (`ConsultasDaComanda`): o que as telas mostram (lista, detalhe,
+  fechamento, cupom, histórico, cozinha), só leitura e sempre de uma loja; `src/domain/comanda/cozinha.py`: a
+  tela da cozinha agrupada por comanda (tudo pronto vai para o fim).
 
 ## Cardápio
 

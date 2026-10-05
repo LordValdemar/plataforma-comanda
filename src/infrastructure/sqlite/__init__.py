@@ -3,6 +3,7 @@
 from .cardapio import RepositorioDeCardapioSQLite
 from .cobranca import RepositorioDeCobrancaSQLite
 from .comandas import RepositorioDeComandasSQLite
+from .consultas_comanda import ConsultasDaComanda
 from .contas import RepositorioDeContasSQLite
 from .empresas import RepositorioDeEmpresasSQLite
 from .exibicoes import RepositorioDeExibicoesSQLite, apagar_exibicoes_anteriores
@@ -14,6 +15,7 @@ from .telas import RepositorioDeConexoesSQLite, RepositorioDeTelasSQLite
 from .vendas import RepositorioDeVendasSQLite
 
 __all__ = [
+    "ConsultasDaComanda",
     "RepositorioDeCardapioSQLite", "RepositorioDeCobrancaSQLite", "RepositorioDeComandasSQLite",
     "RepositorioDeConexoesSQLite", "RepositorioDeContasSQLite", "RepositorioDeEmpresasSQLite",
     "RepositorioDeExibicoesSQLite", "RepositorioDeMonitoramentoSQLite", "RepositorioDePermissoesSQLite",
