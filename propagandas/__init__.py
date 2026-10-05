@@ -138,6 +138,10 @@ def create_app(sobrescrever=None):
             "style-src 'self'; script-src 'self'; frame-src 'none'; object-src 'none'; "
             "frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
         )
+        # Só em produção (HTTPS, COOKIE_SEGURO=1): o navegador passa a exigir HTTPS por um ano.
+        # Em desenvolvimento (http://localhost) o cabeçalho não é enviado, para não prender o navegador no HTTPS.
+        if app.config["SESSION_COOKIE_SECURE"]:
+            resposta.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         return resposta
 
     @app.errorhandler(413)

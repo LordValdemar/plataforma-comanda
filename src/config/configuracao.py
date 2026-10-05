@@ -26,7 +26,7 @@ def montar_config(sobrescrever: Mapping[str, Any] | None = None) -> dict[str, An
         "PASTA_BACKUPS": os.path.join(pasta_dados, "backups"),
         "PASTA_LOGS": os.path.join(pasta_dados, "logs"),
         "BACKUP_MANTER": int(os.environ.get("BACKUP_MANTER", 7)),
-        "MAX_CONTENT_LENGTH": int(os.environ.get("TAMANHO_MAX_MB", 500)) * 1024 * 1024,
+        "MAX_CONTENT_LENGTH": int(os.environ.get("TAMANHO_MAX_MB", 200)) * 1024 * 1024,
         "SESSION_COOKIE_HTTPONLY": True,
         "SESSION_COOKIE_SAMESITE": "Lax",
         "SESSION_COOKIE_SECURE": _env_ligado("COOKIE_SEGURO"),

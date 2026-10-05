@@ -95,6 +95,18 @@ def test_cabecalhos_e_cookie_de_sessao(cliente):
     permissoes = resposta.headers["Permissions-Policy"]
     assert "camera=(self)" in permissoes and "microphone=()" in permissoes and "screen-wake-lock=(self)" in permissoes
     assert resposta.headers["Cache-Control"] == "no-store"
+    assert "Strict-Transport-Security" not in resposta.headers   # sem HTTPS (dev): não prende o navegador no HTTPS
+
+
+def test_hsts_so_em_producao(app):
+    """Com COOKIE_SEGURO (produção HTTPS), o navegador passa a exigir HTTPS por um ano."""
+    app.config["SESSION_COOKIE_SECURE"] = True
+    hsts = app.test_client().get("/").headers.get("Strict-Transport-Security", "")
+    assert "max-age=31536000" in hsts and "includeSubDomains" in hsts
+
+
+def test_limite_de_upload_padrao(app):
+    assert app.config["MAX_CONTENT_LENGTH"] == 200 * 1024 * 1024   # 200 MB (configurável por TAMANHO_MAX_MB)
 
 
 def test_security_txt(app):

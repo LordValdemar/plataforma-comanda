@@ -265,7 +265,7 @@ echo '0 4 * * * root /opt/painel-propagandas/deploy/vps/backup-externo.sh cofre:
 
 (O `30` é quantos dias de backups manter na nuvem.)
 
-**Teste a restauração de vez em quando.** Um backup que nunca foi restaurado não é garantia. Veja "Restaurar um backup" na seção 10.
+**Teste a restauração de vez em quando.** Um backup que nunca foi restaurado não é garantia. Veja "Restaurar um backup" na seção 11 (Problemas comuns).
 
 ---
 
@@ -283,7 +283,14 @@ As atualizações de segurança do Ubuntu já são instaladas sozinhas. De vez e
 
 ---
 
-## 9. Monitoramento
+## 9. Nota sobre os arquivos de mídia
+
+As imagens e vídeos são servidos às TVs **sem senha**, por um endereço com um código aleatório
+(ex.: `/midia/9be1255c672b43e7ad92c555c88fea9e.png`). Isso é necessário porque as TVs não fazem login.
+O endereço não é adivinhável, mas quem tiver o link consegue abrir o arquivo. Oriente os clientes a não
+publicarem material sigiloso. Ao excluir uma propaganda (ou a empresa), o arquivo é apagado do servidor.
+
+## 10. Monitoramento
 
 Cadastre um monitor gratuito (ex.: [UptimeRobot](https://uptimerobot.com) ou [Better Stack](https://betterstack.com)) para o endereço:
 
@@ -305,7 +312,7 @@ sudo /opt/painel-propagandas/deploy/vps/gerenciar.sh listar-empresas
 
 ---
 
-## 10. Problemas comuns
+## 11. Problemas comuns
 
 **O HTTPS não funciona (erro de certificado ou a página não abre)**
 - Confira se o domínio aponta para o IP da VPS: `nslookup painel.sualoja.com.br`.
