@@ -328,6 +328,12 @@ def login_codigo():
 
 @bp.route("/sair", methods=["POST"])
 def sair():
+    # Com o ponto aberto, sair é registrar a saída (na página do ponto, com ou sem o QR code).
+    # Com a loja bloqueada por falta de pagamento a página do ponto não abre: aí sai direto,
+    # e o ponto é fechado sozinho no fim do horário.
+    if g.get("ponto_aberto") and not g.get("bloqueio_pagamento"):
+        flash("Você está com o ponto aberto. Para sair, registre a saída.", "erro")
+        return redirect(url_for("ponto.meu"))
     session.clear()
     return redirect(url_for("auth.login"))
 

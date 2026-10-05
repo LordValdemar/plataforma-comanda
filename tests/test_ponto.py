@@ -89,6 +89,32 @@ def test_entrada_e_saida(logado, app):
     assert "Saída registrada às" in joao.get("/login").get_data(as_text=True)  # o aviso sobrevive à saída
 
 
+def test_com_o_ponto_aberto_sair_exige_registrar_a_saida(logado, app):
+    criar_pessoa(app, "joao")
+    ligar_ponto(logado)
+    joao = entrar(app, "joao")
+    ler_qr(joao, app)
+    post(joao, "/ponto/entrada")
+    pagina = joao.get("/comanda/").get_data(as_text=True)
+    assert 'action="/sair"' not in pagina and "Registre a saída do ponto para sair" in pagina   # o menu leva ao ponto
+
+    # Mesmo mandando o pedido direto, o "Sair" não desconecta: leva à página do ponto, e o ponto continua aberto.
+    resposta = post(joao, "/sair")
+    assert resposta.headers["Location"].endswith("/ponto")
+    assert "Para sair, registre a saída" in joao.get("/ponto").get_data(as_text=True)
+    assert joao.get("/comanda/").status_code == 200
+    assert len(consultar(app, "SELECT * FROM ponto_registros WHERE saida IS NULL")) == 1
+
+    # Registrando a saída (aqui sem o QR), a pessoa é desconectada e o ponto fecha.
+    assert post(joao, "/ponto/saida").headers["Location"].endswith("/login")
+    assert consultar(app, "SELECT motivo_saida FROM ponto_registros")[0]["motivo_saida"] != ""
+    assert len(consultar(app, "SELECT * FROM ponto_registros WHERE saida IS NULL")) == 0
+    assert joao.get("/comanda/").headers["Location"].startswith("/login")
+
+    # Quem não está com o ponto aberto (o administrador) sai normalmente.
+    assert post(logado, "/sair").headers["Location"].endswith("/login")
+
+
 def test_administrador_nao_bate_ponto(logado, app):
     ligar_ponto(logado)
     assert logado.get("/comanda/").status_code == 200
