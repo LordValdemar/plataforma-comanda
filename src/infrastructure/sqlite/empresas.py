@@ -47,6 +47,10 @@ class RepositorioDeEmpresasSQLite:
         with self._c:
             self._c.execute("UPDATE empresas SET logo = '' WHERE id = ?", (empresa_id,))
 
+    def renomear(self, empresa_id: int, nome: str) -> None:
+        with self._c:
+            self._c.execute("UPDATE empresas SET nome = ? WHERE id = ?", (nome, empresa_id))
+
     def criar(self, nome: str, codigo: str, email_cobranca: str) -> int:
         try:
             with self._c:

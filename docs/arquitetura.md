@@ -24,6 +24,10 @@ Regras:
 
 ## Situação da migração
 
+Nas rotas (`propagandas/`) não há SQL: as mudanças passam pelos serviços do domínio e as leituras das telas
+pelas classes `Consultas…` de `src/infrastructure/sqlite`. SQL só em `src/infrastructure` e em `propagandas/db.py`
+(conexão e migrações).
+
 | Etapa | Situação |
 |---|---|
 | 1. Estrutura `src/` e configuração | feita |
@@ -42,6 +46,7 @@ Regras:
 | 6e. Alertas, backup, tarefas de fundo e ajustes da Comanda | feita |
 | 7a. Consultas das telas da Comanda fora das rotas | feita |
 | 7b. Consultas das telas do Painel e do ponto fora das rotas | feita |
+| 7c. Consultas da conta, empresa, cobrança, plataforma e login fora das rotas | feita |
 
 ## Comanda
 
@@ -108,6 +113,7 @@ Testes: `tests/unidade/test_ponto_dominio.py` (regras, sem banco) e `tests/test_
 
 - `src/infrastructure/sqlite/consultas_painel.py` (`ConsultasDoPainel`): telas, grupos e destinos de cada
   propaganda, como as telas mostram (o Painel local copia).
+
 Testes: `tests/unidade/test_painel_dominio.py` e `test_telas_dominio.py` (regras, sem banco),
 `tests/test_propagandas_repositorio.py` e `test_telas_repositorio.py` (banco de verdade: isolamento entre lojas,
 TV reenviando os mesmos registros sem duplicar, conexão pelo QR de ponta a ponta, 6 TVs disputando uma tela antiga).
@@ -150,7 +156,12 @@ gravada, isolamento entre lojas, o dia local com fuso).
 - `propagandas/planos.py` (os serviços e os limites), `modulos.py`, `cadastro.py`, `empresa.py`, `conta.py` e
   `plataforma.py`: a porta de entrada.
 
-Testes: `tests/unidade/test_empresas_dominio.py`, `test_plataforma_dominio.py` e `tests/test_empresas_repositorio.py`.
+- `src/infrastructure/sqlite/consultas_empresas.py` (`ConsultasDeEmpresas`): o que a conta, a empresa, a cobrança,
+  o login e a plataforma leem (planos à venda, faturas, empresas com uso, receita) e a exportação dos dados da loja
+  (LGPD), sem senhas nem segredos de 2FA.
+
+Testes: `tests/unidade/test_empresas_dominio.py`, `test_plataforma_dominio.py`, `tests/test_empresas_repositorio.py`
+e `tests/test_consultas_empresas.py`.
 
 ## Alertas, backup e tarefas de fundo
 

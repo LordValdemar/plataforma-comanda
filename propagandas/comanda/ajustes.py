@@ -7,7 +7,7 @@ from flask import Blueprint, flash, g, redirect, render_template, request, url_f
 
 from src.domain.comanda import ErroComanda, taxa_percentual_valida
 
-from .. import cadastro, db, modulos
+from .. import cadastro, db, modulos, planos
 from .base import gravar_config, ler_config, papel_exigido
 from .comandas import taxa_padrao
 
@@ -17,7 +17,7 @@ bp.before_request(modulos.exigir("comanda"))
 
 def dados_da_loja():
     """O que vai no cabeçalho e no fim do cupom (cadastro da empresa + ajustes da Comanda)."""
-    empresa = db.obter().execute("SELECT * FROM empresas WHERE id = ?", (g.empresa_id,)).fetchone()
+    empresa = planos.empresa(db.obter(), g.empresa_id)
     # Quem preencheu os dados na versão anterior (aqui nos ajustes) continua vendo-os até completar a Empresa.
     return {
         "nome_estabelecimento": g.usuario["empresa_nome"],

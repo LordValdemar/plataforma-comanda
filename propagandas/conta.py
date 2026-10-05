@@ -25,15 +25,12 @@ bp = Blueprint("conta", __name__)
 log = logging.getLogger("propagandas.conta")
 
 
-def planos_a_venda(conexao):
-    linhas = conexao.execute(
-        "SELECT * FROM planos WHERE ativo = 1 AND preco_centavos > 0 ORDER BY preco_centavos, nome"
-    ).fetchall()
-    return [dict(linha, lista_modulos=em_ordem(linha["modulos"])) for linha in linhas]
+def planos_a_venda(conexao=None):
+    return [dict(plano, lista_modulos=em_ordem(plano["modulos"])) for plano in empresas.consultas(conexao).planos_a_venda()]
 
 
 def _empresa():
-    return db.obter().execute("SELECT * FROM empresas WHERE id = ?", (g.empresa_id,)).fetchone()
+    return empresas.consultas().ficha(g.empresa_id)
 
 
 @bp.before_app_request
@@ -41,13 +38,13 @@ def pagina_publica():
     """Com o cadastro aberto, quem chega em "/" sem login vê a apresentação e os planos."""
     if (request.path == "/" and getattr(g, "usuario", None) is None and current_app.config["CADASTRO_ABERTO"]
             and existe_usuario(db.obter())):
-        return render_template("publico.html", planos=planos_a_venda(db.obter()))
+        return render_template("publico.html", planos=planos_a_venda())
     return None
 
 
 @bp.route("/planos")
 def planos():
-    return render_template("publico.html", planos=planos_a_venda(db.obter()), so_planos=True)
+    return render_template("publico.html", planos=planos_a_venda(), so_planos=True)
 
 
 # ---------------------------------------------------------------------------
@@ -92,22 +89,16 @@ def cadastro():
 @bp.route("/loja")
 @login_obrigatorio()
 def inicio():
-    conexao = db.obter()
+    leitura = empresas.consultas()
     empresa = _empresa()
-    plano = None
-    if empresa["plano_id"]:
-        plano = conexao.execute("SELECT * FROM planos WHERE id = ?", (empresa["plano_id"],)).fetchone()
     return render_template(
         "conta_inicio.html",
         empresa=empresa,
-        plano=plano,
-        planos=planos_a_venda(conexao),
+        plano=leitura.plano(empresa["plano_id"]),
+        planos=planos_a_venda(),
         MODULOS=modulos.MODULOS,
         DESCRICOES=modulos.DESCRICOES,
-        fatura_aberta=conexao.execute(
-            "SELECT * FROM faturas WHERE empresa_id = ? AND status IN ('PENDING', 'OVERDUE') ORDER BY vencimento LIMIT 1",
-            (g.empresa_id,),
-        ).fetchone(),
+        fatura_aberta=leitura.fatura_em_aberto(g.empresa_id),
         principal=g.empresa_id == EMPRESA_PRINCIPAL,
     )
 
@@ -116,10 +107,8 @@ def inicio():
 # Assinar, trocar de plano e cancelar (só o administrador da loja)
 # ---------------------------------------------------------------------------
 
-def _plano(conexao, plano_id):
-    plano = conexao.execute(
-        "SELECT * FROM planos WHERE id = ? AND ativo = 1 AND preco_centavos > 0", (plano_id,)
-    ).fetchone()
+def _plano(plano_id):
+    plano = empresas.consultas().plano_a_venda(plano_id)
     if plano is None:
         abort(404)
     return plano
@@ -128,8 +117,7 @@ def _plano(conexao, plano_id):
 @bp.route("/loja/assinar/<int:plano_id>", methods=["GET", "POST"])
 @login_obrigatorio("admin")
 def assinar(plano_id):
-    conexao = db.obter()
-    plano = _plano(conexao, plano_id)
+    plano = _plano(plano_id)
     empresa = _empresa()
     if g.empresa_id == EMPRESA_PRINCIPAL:
         flash("A empresa principal da plataforma usa todos os módulos e não assina planos.", "erro")

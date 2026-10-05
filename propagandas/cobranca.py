@@ -23,7 +23,7 @@ from src.domain.cobranca import (
 from src.domain.dinheiro import reais
 from src.domain.documentos import documento_valido, so_numeros
 from src.domain.erros import NaoEncontrado
-from src.infrastructure.sqlite import RepositorioDeCobrancaSQLite
+from src.infrastructure.sqlite import ConsultasDeEmpresas, RepositorioDeCobrancaSQLite
 
 from . import agenda, alertas, asaas, db, modulos
 from .auth import EMPRESA_PRINCIPAL, csrf_isento, login_obrigatorio, plataforma_obrigatoria
@@ -36,7 +36,7 @@ ler_reais = ler_preco   # nome antigo: preço digitado → centavos (None se inv
 
 
 def _avisar_plataforma(mensagem):
-    principal = db.obter().execute("SELECT * FROM empresas WHERE id = ?", (EMPRESA_PRINCIPAL,)).fetchone()
+    principal = ConsultasDeEmpresas(db.obter()).ficha(EMPRESA_PRINCIPAL)
     canais = alertas.canais_da_empresa(principal, current_app.config)
     if canais.nomes:
         alertas.enviar_alerta(mensagem, canais)
@@ -53,17 +53,12 @@ def servico():
 # Atalhos com os nomes de antes (tarefas, outras telas e testes).
 
 def faturas_da_empresa(conexao, empresa_id, limite=12):
-    return conexao.execute(
-        "SELECT * FROM faturas WHERE empresa_id = ? AND status != 'DELETED' ORDER BY vencimento DESC LIMIT ?",
-        (empresa_id, limite),
-    ).fetchall()
+    return ConsultasDeEmpresas(conexao).faturas(empresa_id, limite)
 
 
 def fatura_vencida(conexao, empresa_id):
     """A fatura vencida mais antiga, se houver (aviso no topo das páginas)."""
-    return conexao.execute(
-        "SELECT * FROM faturas WHERE empresa_id = ? AND status = 'OVERDUE' ORDER BY vencimento LIMIT 1", (empresa_id,)
-    ).fetchone()
+    return ConsultasDeEmpresas(conexao).fatura_vencida(empresa_id)
 
 
 def gravar_fatura(_conexao, empresa_id, pagamento):
@@ -109,9 +104,8 @@ def webhook_asaas():
 @bp.route("/pagamento")
 @login_obrigatorio()
 def pagamento():
-    conexao = db.obter()
-    empresa = conexao.execute("SELECT * FROM empresas WHERE id = ?", (g.empresa_id,)).fetchone()
-    return render_template("pagamento.html", empresa=empresa, faturas=faturas_da_empresa(conexao, g.empresa_id),
+    leitura = ConsultasDeEmpresas(db.obter())
+    return render_template("pagamento.html", empresa=leitura.ficha(g.empresa_id), faturas=leitura.faturas(g.empresa_id),
                            STATUS=STATUS, EM_ABERTO=EM_ABERTO)
 
 

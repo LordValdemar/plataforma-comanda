@@ -2,11 +2,11 @@
 
 from src.domain.empresas import MB, ServicoDaPlataforma, ServicoDeEmpresas
 from src.infrastructure.alertas import motivo_para_recusar
-from src.infrastructure.sqlite import RepositorioDeEmpresasSQLite
+from src.infrastructure.sqlite import ConsultasDeEmpresas, RepositorioDeEmpresasSQLite
 
 from . import db
 
-__all__ = ["MB", "cabe_no_armazenamento", "empresa", "pode_cadastrar_tela", "servico", "servico_da_plataforma", "uso"]
+__all__ = ["MB", "cabe_no_armazenamento", "consultas", "empresa", "pode_cadastrar_tela", "servico", "servico_da_plataforma", "uso"]
 
 
 def servico(conexao=None):
@@ -16,9 +16,14 @@ def servico(conexao=None):
                              conferir_webhook=motivo_para_recusar)
 
 
+def consultas(conexao=None):
+    """O que as telas leem das empresas, planos e faturas."""
+    return ConsultasDeEmpresas(conexao or db.obter())
+
+
 def empresa(conexao, empresa_id):
     """A ficha completa (para as telas)."""
-    return conexao.execute("SELECT * FROM empresas WHERE id = ?", (empresa_id,)).fetchone()
+    return consultas(conexao).ficha(empresa_id)
 
 
 def uso(conexao, empresa_id):

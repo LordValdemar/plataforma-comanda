@@ -32,10 +32,11 @@ from src.domain.contas import (
     acesso,
 )
 from src.domain.contas.entidades import JANELA_BLOQUEIO, MAX_TENTATIVAS
+from src.domain.empresas import ServicoDeEmpresas
 from src.domain.erros import NaoEncontrado, SemPermissao
 from src.domain.tentativas import LimiteDeTentativas
 from src.infrastructure.senhas import SenhasWerkzeug
-from src.infrastructure.sqlite import RepositorioDeContasSQLite
+from src.infrastructure.sqlite import ConsultasDeEmpresas, RepositorioDeContasSQLite, RepositorioDeEmpresasSQLite
 
 from . import db, modulos, totp
 
@@ -104,11 +105,8 @@ def _verificar_csrf():
 
 
 def _buscar_usuario(conexao, usuario_id):
-    return conexao.execute(
-        "SELECT u.*, COALESCE(NULLIF(e.razao_social, ''), e.nome) AS empresa_nome, e.slug AS empresa_slug, e.ativa AS empresa_ativa, e.motivo_suspensao "
-        "FROM usuarios u JOIN empresas e ON e.id = u.empresa_id WHERE u.id = ?",
-        (usuario_id,),
-    ).fetchone()
+    """A pessoa com o nome, o código e a situação da loja dela."""
+    return ConsultasDeEmpresas(conexao).usuario_com_loja(usuario_id)
 
 
 def suspensa_por_pagamento(linha):
@@ -237,9 +235,8 @@ def configurar():
             except ErroUsuario as erro:
                 flash(str(erro), "erro")
             else:
-                if empresa:
-                    with conexao:
-                        conexao.execute("UPDATE empresas SET nome = ? WHERE id = ?", (empresa, EMPRESA_PRINCIPAL))
+                ServicoDeEmpresas(RepositorioDeEmpresasSQLite(conexao), EMPRESA_PRINCIPAL).renomear(
+                    EMPRESA_PRINCIPAL, empresa)
                 _entrar(_buscar_usuario(conexao, novo_id))
                 log.info("Administrador inicial “%s” criado (IP %s)", usuario.strip(), request.remote_addr)
                 flash("Tudo pronto! Agora cadastre suas telas e envie as propagandas.", "ok")
@@ -295,7 +292,7 @@ def login():
 @bp.route("/entrar/<slug>")
 def entrar_na_loja(slug):
     """Endereço de login de cada loja (o código já vem preenchido): bom para o ícone no celular da equipe."""
-    if db.obter().execute("SELECT 1 FROM empresas WHERE slug = ?", (slug.lower(),)).fetchone() is None:
+    if not ConsultasDeEmpresas(db.obter()).loja_existe(slug):
         abort(404)
     return redirect(url_for("auth.login", loja=slug.lower()))
 
@@ -421,10 +418,7 @@ def _na_equipe(acao):
 @bp.route("/usuarios")
 @login_obrigatorio("admin")
 def usuarios():
-    linhas = db.obter().execute(
-        "SELECT * FROM usuarios WHERE empresa_id = ? ORDER BY usuario", (g.empresa_id,)
-    ).fetchall()
-    return render_template("usuarios.html", usuarios=linhas)
+    return render_template("usuarios.html", usuarios=ConsultasDeEmpresas(db.obter()).usuarios_da_loja(g.empresa_id))
 
 
 @bp.route("/usuarios/novo", methods=["POST"])

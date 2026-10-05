@@ -37,28 +37,13 @@ def _dados_do_formulario(modulos_padrao="painel"):
 @plataforma_obrigatoria
 def lista():
     conexao = db.obter()
-    empresas = conexao.execute(
-        """
-        SELECT e.*,
-               (SELECT COUNT(*) FROM usuarios u WHERE u.empresa_id = e.id) AS usuarios,
-               (SELECT COUNT(*) FROM propagandas p WHERE p.empresa_id = e.id) AS propagandas,
-               (SELECT COALESCE(SUM(tamanho), 0) FROM propagandas p WHERE p.empresa_id = e.id) AS bytes
-        FROM empresas e ORDER BY e.id
-        """
-    ).fetchall()
-    telas = conexao.execute("SELECT empresa_id, ultimo_contato, fechada_em FROM telas").fetchall()
+    leitura = planos.consultas(conexao)
+    empresas = leitura.empresas_com_uso()
     resumo_telas = {}
-    for tela in telas:
+    for tela in leitura.contato_das_telas():
         contagem = resumo_telas.setdefault(tela["empresa_id"], {"total": 0, "online": 0})
         contagem["total"] += 1
         contagem["online"] += alertas.esta_online(tela)
-    faturas = {}
-    for fatura in conexao.execute(
-        "SELECT * FROM faturas WHERE status != 'DELETED' ORDER BY vencimento DESC"
-    ).fetchall():
-        lista_empresa = faturas.setdefault(fatura["empresa_id"], [])
-        if len(lista_empresa) < 6:
-            lista_empresa.append(fatura)
     return render_template(
         "plataforma.html",
         MODULOS=modulos.MODULOS,
@@ -68,16 +53,13 @@ def lista():
         telas=resumo_telas,
         MB=MB,
         principal=EMPRESA_PRINCIPAL,
-        planos=conexao.execute("SELECT * FROM planos ORDER BY preco_centavos").fetchall(),
-        faturas=faturas,
+        planos=leitura.planos(),
+        faturas=leitura.faturas_recentes(por_empresa=6),
         STATUS=cobranca.STATUS,
         asaas_configurado=asaas.configurado(),
         ambiente=current_app.config["ASAAS_AMBIENTE"],
         hoje=agenda.agora_local().date(),
-        receita=conexao.execute(
-            "SELECT COALESCE(SUM(p.preco_centavos), 0) FROM empresas e JOIN planos p ON p.id = e.plano_id "
-            "WHERE e.asaas_assinatura_id IS NOT NULL AND e.ativa = 1"
-        ).fetchone()[0],
+        receita=leitura.receita_mensal(),
     )
 
 

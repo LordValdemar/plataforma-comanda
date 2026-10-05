@@ -55,6 +55,9 @@ class EmpresasFalsas:
     def remover_logo(self, empresa_id):
         pass
 
+    def renomear(self, empresa_id, nome):
+        self.empresas[empresa_id]["nome"] = nome
+
     def criar(self, nome, codigo, email_cobranca):
         novo = max(self.empresas) + 1
         self.empresas[novo] = {"nome": nome, "slug": codigo, "liberados": "", "plano": None}

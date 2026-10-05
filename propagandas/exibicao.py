@@ -20,7 +20,7 @@ from flask import (
 
 from src.domain.painel import MuitosPedidos, Playlist, ServicoDeConexao, ServicoDePropagandas, TelaDaPlaylist
 from src.domain.painel.telas import PEDIDO_VALIDADE
-from src.infrastructure.sqlite import RepositorioDeConexoesSQLite, RepositorioDePropagandasSQLite
+from src.infrastructure.sqlite import ConsultasDeEmpresas, RepositorioDeConexoesSQLite, RepositorioDePropagandasSQLite
 
 from . import agenda, db
 from .auth import EMPRESA_PRINCIPAL, csrf_isento
@@ -34,8 +34,7 @@ COOKIE_PEDIDO = "tela_pedido"           # segredo do pedido de conexão feito na
 
 
 def empresa_ativa(empresa_id):
-    linha = db.obter().execute("SELECT ativa FROM empresas WHERE id = ?", (empresa_id,)).fetchone()
-    return bool(linha and linha["ativa"])
+    return ConsultasDeEmpresas(db.obter()).ativa(empresa_id)
 
 
 def _propagandas(empresa_id):
