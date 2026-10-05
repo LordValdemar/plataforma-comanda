@@ -111,7 +111,7 @@ def test_cadastro_confere_nome_senha_papel_e_loja():
     assert repo.contas[joao].usuario == "joao" and repo.contas[joao].senha_hash == "hash:senha-forte"
     assert servico.criar(3, "joao", "outra-senha", "caixa")   # o mesmo nome em outra loja pode
     for argumentos, mensagem in [
-        ((2, "joao", "senha-forte", "garcom"), "já existe nesta loja"),
+        ((2, "joao", "senha-forte", "garcom"), "já existe. Escolha outro"),
         ((2, "", "senha-forte", "garcom"), "nome de usuário"),
         ((2, "x" * 51, "senha-forte", "garcom"), "nome de usuário"),
         ((2, "maria", "curta", "garcom"), "pelo menos 8"),
