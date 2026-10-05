@@ -34,14 +34,16 @@
     botao.hidden = false;
   }
 
-  // Só aceita QR deste site com o caminho esperado (data-prefixo do botão): um QR qualquer
-  // não leva o celular para outro lugar.
-  const prefixo = botao.dataset.prefixo || "/ponto/qr/";
+  // Só aceita QR deste site com um dos caminhos esperados (data-prefixo do botão, separados por
+  // espaço): um QR qualquer não leva o celular para outro lugar.
+  const prefixos = (botao.dataset.prefixo || "/ponto/qr/").split(" ").filter(Boolean);
   const alvo = botao.dataset.alvo || "a tela do ponto da loja";
   function enderecoDoPonto(texto) {
     try {
       const url = new URL(texto);
-      if (url.origin === location.origin && url.pathname.indexOf(prefixo) === 0) return url.href;
+      if (url.origin === location.origin && prefixos.some(function (p) { return url.pathname.indexOf(p) === 0; })) {
+        return url.href;
+      }
     } catch (erro) { /* não é um endereço */ }
     return null;
   }

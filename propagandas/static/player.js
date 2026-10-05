@@ -34,7 +34,7 @@ async function atualizarLista() {
     if (resposta.status === 403) {
       // Este aparelho não está (mais) conectado à tela: volta para a página do QR code.
       const dados = await resposta.json().catch(() => ({}));
-      location.href = dados.conectar || "/tela";
+      location.href = dados.conectar || "/tv";
       return false;
     }
     if (!resposta.ok) throw new Error("HTTP " + resposta.status);

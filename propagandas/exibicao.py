@@ -114,12 +114,16 @@ def _crachas_deste_navegador():
             if nome.startswith(prefixo) and nome[len(prefixo):].isdigit() and token}
 
 
+# Os endereços das TVs são /tv...; os antigos /tela... continuam valendo (TVs já instaladas abrem /tela).
+# Com dois endereços na mesma rota, o url_for usa o de baixo (registrado primeiro): /tv.
+
 @bp.route("/tela")
+@bp.route("/tv")
 def conectar():
     """Endereço único para as TVs: mostra um QR code; quem administra lê e escolhe a tela.
 
     TV já conectada (tem o crachá de uma tela) vai direto para as propagandas dela: o atalho
-    de quiosque da TV pode abrir sempre /tela, mesmo depois de reiniciar. Com mais de uma tela
+    de quiosque da TV pode abrir sempre /tv, mesmo depois de reiniciar. Com mais de uma tela
     conectada no mesmo navegador, mostra a lista para escolher.
     """
     conectadas = _conexao().telas_do_aparelho(_crachas_deste_navegador())
@@ -131,6 +135,7 @@ def conectar():
 
 
 @bp.route("/tela/nova")
+@bp.route("/tv/nova")
 def conectar_nova():
     """Mostra o QR code mesmo num navegador que já tem telas: para conectar mais uma."""
     conexao = _conexao()
@@ -191,10 +196,11 @@ def playlist():
 
 
 # ---------------------------------------------------------------------------
-# Telas cadastradas: cada TV usa o próprio endereço /tela/<código>
+# Telas cadastradas: cada TV usa o próprio endereço /tv/<código>
 # ---------------------------------------------------------------------------
 
 @bp.route("/tela/<codigo>")
+@bp.route("/tv/<codigo>")
 def tela(codigo):
     tela = _conexao().tela(codigo)
     if tela is None:

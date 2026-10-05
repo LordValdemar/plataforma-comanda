@@ -128,7 +128,7 @@ Pode rodar de novo quando quiser: o que já está configurado é mantido.
 
 1. **Imediatamente**, abra `https://painel.sualoja.com.br` e crie o seu usuário administrador. Até isso ser feito, quem abrir o endereço primeiro cria o administrador.
 2. Em **Minha conta**, ative a **verificação em duas etapas**.
-3. Em **Telas**, cadastre as TVs. Para conectar cada TV, abra `https://painel.sualoja.com.br/tela` no navegador dela e leia o QR code que aparece com o celular (entrando como administrador ou editor). A TV fica presa à tela escolhida e funciona de qualquer lugar com internet.
+3. Em **Telas**, cadastre as TVs. Para conectar cada TV, abra `https://painel.sualoja.com.br/tv` no navegador dela e leia o QR code que aparece com o celular (entrando como administrador ou editor). A TV fica presa à tela escolhida e funciona de qualquer lugar com internet.
 
 ---
 

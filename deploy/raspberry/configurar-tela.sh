@@ -3,7 +3,7 @@
 # ao ligar, abre o endereço da tela em tela cheia, sem apagar a tela e com som.
 #
 # Rode com o usuário que entra na área de trabalho (NÃO use sudo):
-#   ./deploy/raspberry/configurar-tela.sh http://192.168.0.10:5000/tela
+#   ./deploy/raspberry/configurar-tela.sh http://192.168.0.10:5000/tv
 #
 # Para desfazer:  ./deploy/raspberry/configurar-tela.sh --remover
 set -euo pipefail
@@ -28,7 +28,7 @@ fi
 ENDERECO="${1:-}"
 if [[ ! "$ENDERECO" =~ ^https?://[^/]+/(tela(/[A-Za-z0-9_-]+)?|player)$ ]]; then
   echo "Uso: $0 ENDERECO-DA-TELA"
-  echo "Exemplo: $0 http://192.168.0.10:5000/tela"
+  echo "Exemplo: $0 http://192.168.0.10:5000/tv"
   echo "O endereço de cada tela aparece no painel, em \"Telas\"."
   exit 1
 fi

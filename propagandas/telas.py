@@ -88,7 +88,8 @@ def trocar_codigo(tela_id):
     return redirect(url_for("telas.lista"))
 
 
-@bp.route("/tela/parear/<codigo>", methods=["GET", "POST"])
+@bp.route("/tela/parear/<codigo>", methods=["GET", "POST"])   # QR codes mostrados antes da troca para /tv
+@bp.route("/tv/parear/<codigo>", methods=["GET", "POST"])
 @permissoes.exigir("conectar_tv")
 def parear(codigo):
     """Aberta pelo celular ao ler o QR code da TV: escolhe qual tela aquela TV vai mostrar."""

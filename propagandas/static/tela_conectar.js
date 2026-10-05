@@ -1,4 +1,4 @@
-// Página /tela da TV: pergunta ao servidor se alguém já escolheu a tela desta TV e, quando
+// Página /tv da TV: pergunta ao servidor se alguém já escolheu a tela desta TV e, quando
 // escolher, vai direto para as propagandas. Se o código vencer, carrega um código novo.
 "use strict";
 

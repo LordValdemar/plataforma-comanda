@@ -133,7 +133,7 @@ def test_pulso_registra_contato_e_exibicoes(logado):
     intruso = logado.application.test_client()
     assert intruso.post(f"/api/tela/{tela['codigo']}/pulso", json={"exibicoes": lote}).status_code == 403
     assert intruso.get(f"/api/tela/{tela['codigo']}/playlist").status_code == 403
-    assert intruso.get(f"/tela/{tela['codigo']}").headers["Location"].endswith("/tela")
+    assert intruso.get(f"/tela/{tela['codigo']}").headers["Location"].endswith("/tv")
     # Rota das TVs não usa sessão: funciona sem CSRF; vale o "crachá" da TV conectada.
     tv = logado
     resposta = tv.post(f"/api/tela/{tela['codigo']}/pulso", json={"exibindo": pid, "exibicoes": lote})
@@ -387,22 +387,25 @@ def test_tv_se_conecta_pelo_qr_code(logado):
     tela = consultar(logado, "SELECT * FROM telas WHERE nome = 'Vitrine'")[0]
     tv = logado.application.test_client()
 
-    # Tela nova: o endereço sozinho não funciona; a TV vai para a página do QR code.
-    assert tv.get(f"/tela/{tela['codigo']}").headers["Location"].endswith("/tela")
-    pagina = tv.get("/tela").get_data(as_text=True)
+    # Tela nova: o endereço sozinho não funciona; a TV vai para a página do QR code (/tv).
+    assert tv.get(f"/tv/{tela['codigo']}").headers["Location"].endswith("/tv")
+    assert tv.get(f"/tela/{tela['codigo']}").headers["Location"].endswith("/tv")    # o endereço antigo continua
+    pagina = tv.get("/tv").get_data(as_text=True)
     assert "data:image/svg+xml" in pagina
     codigo = _codigo_da_tv(tv)
     assert tv.get("/api/tela/conexao").get_json() == {"pronto": False}
 
     # O celular lê o QR: aparece a lista de telas da loja.
-    assert "Vitrine" in logado.get(f"/tela/parear/{codigo}").get_data(as_text=True)
-    postar(logado, f"/tela/parear/{codigo}", {"tela_id": str(tela["id"])}, pagina=f"/tela/parear/{codigo}")
+    assert "Vitrine" in logado.get(f"/tv/parear/{codigo}").get_data(as_text=True)
+    postar(logado, f"/tv/parear/{codigo}", {"tela_id": str(tela["id"])}, pagina=f"/tv/parear/{codigo}")
     resposta = tv.get("/api/tela/conexao").get_json()
-    assert resposta == {"pronto": True, "url": f"/tela/{tela['codigo']}"}
+    assert resposta == {"pronto": True, "url": f"/tv/{tela['codigo']}"}
+    assert tv.get(f"/tv/{tela['codigo']}").status_code == 200
     assert tv.get(f"/tela/{tela['codigo']}").status_code == 200
     assert tv.get(f"/api/tela/{tela['codigo']}/playlist").status_code == 200
-    # A TV reiniciou e abriu o endereço único: vai direto para a tela dela.
-    assert tv.get("/tela").headers["Location"].endswith(f"/tela/{tela['codigo']}")
+    # A TV reiniciou e abriu o endereço único (o novo ou o antigo): vai direto para a tela dela.
+    assert tv.get("/tv").headers["Location"].endswith(f"/tv/{tela['codigo']}")
+    assert tv.get("/tela").headers["Location"].endswith(f"/tv/{tela['codigo']}")
     # O código já foi usado.
     assert "venceu" in postar(logado, f"/tela/parear/{codigo}", {"tela_id": str(tela["id"])},
                               pagina="/telas", follow_redirects=True).get_data(as_text=True)
@@ -414,7 +417,7 @@ def test_tv_se_conecta_pelo_qr_code(logado):
 
     # Desconectar pelo painel: a TV volta para o QR code.
     postar(logado, f"/telas/{tela['id']}/desconectar-aparelho", pagina="/telas")
-    assert outra.get(f"/api/tela/{tela['codigo']}/playlist").get_json()["conectar"] == "/tela"
+    assert outra.get(f"/api/tela/{tela['codigo']}/playlist").get_json()["conectar"] == "/tv"
 
 
 def test_codigo_digitado_e_codigo_vencido(logado, monkeypatch):
@@ -424,7 +427,7 @@ def test_codigo_digitado_e_codigo_vencido(logado, monkeypatch):
     codigo = _codigo_da_tv(tv)
     # Sem câmera: o administrador digita o código (minúsculo, com espaço) em Telas.
     resposta = postar(logado, "/telas/conectar", {"codigo": f" {codigo[:3].lower()} {codigo[3:]} "}, pagina="/telas")
-    assert resposta.headers["Location"].endswith(f"/tela/parear/{codigo}")
+    assert resposta.headers["Location"].endswith(f"/tv/parear/{codigo}")
 
     # Depois de 10 minutos o código vence: a TV recarrega e mostra outro.
     with logado.application.app_context():
@@ -471,9 +474,9 @@ def test_so_admin_e_editor_conectam_e_so_telas_da_propria_loja(logado):
     editor = entrar("editor1")
     assert "Do dono" in editor.get(f"/tela/parear/{codigo}").get_data(as_text=True)
     # O editor tem o leitor de QR da TV e o campo do código na página de propagandas.
-    assert 'data-prefixo="/tela/parear/"' in editor.get("/").get_data(as_text=True)
+    assert 'data-prefixo="/tv/parear/ /tela/parear/"' in editor.get("/").get_data(as_text=True)
     resposta = postar(editor, "/telas/conectar", {"codigo": codigo.lower()}, pagina="/")
-    assert resposta.headers["Location"].endswith(f"/tela/parear/{codigo}")
+    assert resposta.headers["Location"].endswith(f"/tv/parear/{codigo}")
     dono2 = entrar("dono2")
     assert "Do dono" not in dono2.get(f"/tela/parear/{codigo}").get_data(as_text=True)
     postar(dono2, f"/tela/parear/{codigo}", {"tela_id": str(tela_do_dono)}, pagina=f"/tela/parear/{codigo}")
@@ -493,7 +496,7 @@ def test_varias_telas_no_mesmo_navegador(logado):
         assert pc.get("/api/tela/conexao").get_json()["pronto"]
 
     conectar("/tela", um)
-    assert pc.get("/tela").headers["Location"].endswith(f"/tela/{um['codigo']}")   # só uma: vai direto
+    assert pc.get("/tela").headers["Location"].endswith(f"/tv/{um['codigo']}")   # só uma: vai direto
     # /tela/nova mostra o QR mesmo com uma tela já conectada.
     pagina = pc.get("/tela/nova").get_data(as_text=True)
     assert "Este navegador já mostra" in pagina and "Monitor 1" in pagina
@@ -550,3 +553,19 @@ def test_tv_avisa_quando_a_janela_fecha(logado):
             conexao.execute("UPDATE telas SET fechada_em = '2026-01-01 00:00:00', ultimo_contato = '2026-01-01 00:00:00'")
     logado.get(f"/api/tela/{tela['codigo']}/playlist")
     assert "Online" in logado.get("/telas").get_data(as_text=True)
+
+
+def test_qr_code_da_tv_aponta_para_tv(logado):
+    """O QR code mostrado na TV leva o celular a /tv/parear/<código>; as páginas mostram /tv."""
+    from flask import url_for
+
+    with logado.application.test_request_context():
+        assert url_for("telas.parear", codigo="ABC123") == "/tv/parear/ABC123"     # o endereço gravado no QR code
+        assert url_for("exibicao.conectar") == "/tv" and url_for("exibicao.conectar_nova") == "/tv/nova"
+        assert url_for("exibicao.tela", codigo="balcao-x") == "/tv/balcao-x"
+    codigo = re.search(r'<p class="relogio">([A-Z0-9]{6})</p>',
+                       logado.application.test_client().get("/tv").get_data(as_text=True)).group(1)
+    assert logado.get(f"/tv/parear/{codigo}").status_code == 200
+    assert logado.get(f"/tela/parear/{codigo}").status_code == 200              # QR code mostrado antes da troca
+    assert "/tv</span>" in logado.get("/telas").get_data(as_text=True)
+    assert "/tv</span>" in logado.get("/").get_data(as_text=True)

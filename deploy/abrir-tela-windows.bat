@@ -6,7 +6,7 @@ REM 2. Para abrir sozinho ao ligar: Win+R, digite shell:startup e coloque
 REM    um atalho para este arquivo na pasta que abrir.
 REM Para sair da tela cheia: Alt+F4.
 
-set ENDERECO=http://192.168.0.10:5000/tela
+set ENDERECO=http://192.168.0.10:5000/tv
 
 REM Espera o servidor responder antes de abrir (se o PC ligar antes do servidor).
 for /f "tokens=1-3 delims=/" %%a in ("%ENDERECO%") do set SERVIDOR=%%a//%%b

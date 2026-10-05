@@ -31,7 +31,7 @@
     <summary><b>📺 Conectar uma TV</b></summary>
     <p class="u-mt8">Na TV, abra <span class="endereco">{{ url_for('exibicao.conectar', _external=True) }}</span>. Vai aparecer um QR code: leia com o celular e escolha a tela.</p>
     <div class="leitor-qr">
-      <button type="button" id="abrir-camera" class="grande" data-prefixo="/tela/parear/" data-alvo="a TV">📷 Abrir a câmera e ler o QR code da TV</button>
+      <button type="button" id="abrir-camera" class="grande" data-prefixo="/tv/parear/ /tela/parear/" data-alvo="a TV">📷 Abrir a câmera e ler o QR code da TV</button>
       <div id="leitor" hidden>
         <video id="leitor-video" playsinline muted></video>
         <p id="leitor-aviso" class="leitor-aviso"></p>
